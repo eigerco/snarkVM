@@ -1,0 +1,42 @@
+[package]
+name = "snarkvm-cosmwasm"
+version = "3.7.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+full = ["account", "network", "types", "program"]
+account = ["snarkvm-console-account"]
+network = ["snarkvm-console-network"]
+types = ["snarkvm-console-types"]
+program = ["snarkvm-console-program"]
+
+[dependencies.snarkvm-console-account]
+path = "../console/account"
+version = "=3.7.1"
+optional = true
+
+[dependencies.snarkvm-console-network]
+path = "../console/network"
+version = "=3.7.1"
+features = ["cosmwasm"]
+optional = true
+
+[dependencies.snarkvm-console-types]
+path = "../console/types"
+version = "=3.7.1"
+default-features = false
+features = ["address"]
+optional = true
+
+[dependencies.snarkvm-console-program]
+path = "../console/program"
+version = "=3.7.1"
+optional = true
+
+[dependencies.getrandom]
+version = "0.2"
+features = ["custom"]

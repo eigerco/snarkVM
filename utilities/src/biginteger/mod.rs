@@ -15,7 +15,6 @@
 
 use crate::{FromBits, FromBytes, ToBits, ToBytes, rand::Uniform};
 
-use num_bigint::BigUint;
 use std::fmt::{Debug, Display};
 
 mod bigint_256;
@@ -90,7 +89,8 @@ pub trait BigInteger:
     fn get_bit(&self, i: usize) -> bool;
 
     /// Returns the BigUint representation.
-    fn to_biguint(&self) -> BigUint;
+    #[cfg(not(feature = "cosmwasm"))]
+    fn to_biguint(&self) -> num_bigint::BigUint;
 
     /// Returns a vector for wnaf.
     fn find_wnaf(&self) -> Vec<i64>;
