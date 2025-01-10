@@ -17,6 +17,7 @@ wasm = [
 test = [ ]
 test_targets = [ ]
 test_consensus_heights = [ ]
+cosmwasm = [ "snarkvm-parameters/cosmwasm" ]
 
 [dependencies.snarkvm-algorithms]
 path = "../../algorithms"
