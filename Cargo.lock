@@ -2571,6 +2571,7 @@ dependencies = [
  "snarkvm-algorithms",
  "snarkvm-circuit",
  "snarkvm-console",
+ "snarkvm-cosmwasm",
  "snarkvm-curves",
  "snarkvm-fields",
  "snarkvm-ledger",
@@ -3046,6 +3047,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "snarkvm-cosmwasm"
+version = "1.1.0"
+dependencies = [
+ "getrandom",
+ "snarkvm-console-account",
+ "snarkvm-console-network",
+ "snarkvm-console-program",
+ "snarkvm-console-types",
+]
+
+[[package]]
 name = "snarkvm-curves"
 version = "1.1.0"
 dependencies = [
@@ -3374,6 +3386,7 @@ dependencies = [
  "colored",
  "curl",
  "encoding",
+ "getrandom",
  "hex",
  "indexmap 2.2.6",
  "itertools 0.11.0",

@@ -16,6 +16,7 @@ wasm = [
 ]
 test = [ ]
 test_targets = [ ]
+cosmwasm = [ "snarkvm-parameters/cosmwasm" ]
 
 [dependencies.snarkvm-algorithms]
 path = "../../algorithms"
