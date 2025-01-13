@@ -146,11 +146,6 @@ macro_rules! impl_store_and_remote_fetch {
                 Err($crate::errors::ParameterError::Wasm("Download failed - XMLHttpRequest failed".to_string()))
             }
         }
-
-        #[cfg(feature = "cosmwasm")]
-        fn remote_fetch(_url: &str) -> Result<Vec<u8>, $crate::errors::ParameterError> {
-            unimplemented!()
-        }
     };
 }
 
@@ -172,6 +167,7 @@ macro_rules! impl_load_bytes_logic_local {
     };
 }
 
+#[cfg(not(feature = "cosmwasm"))]
 macro_rules! impl_load_bytes_logic_remote {
     ($remote_url: expr, $local_dir: expr, $filename: expr, $metadata: expr, $expected_checksum: expr, $expected_size: expr) => {
         // Compose the correct file path for the parameter file.
@@ -229,9 +225,7 @@ macro_rules! impl_load_bytes_logic_remote {
                     }
 
                     buffer
-                } else if #[cfg(feature = "cosmwasm")] {
-                    unimplemented!()
-                } else {
+                }  else {
                     return Err($crate::errors::ParameterError::RemoteFetchDisabled);
                 }
             }
@@ -328,27 +322,33 @@ macro_rules! impl_remote {
             impl_store_and_remote_fetch!();
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                let expected_checksum: String =
-                    metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
-                let expected_size: usize =
-                    metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
+                #[cfg(not(feature = "cosmwasm"))]
+                {
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                    let expected_checksum: String =
+                        metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
+                    let expected_size: usize =
+                        metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
 
-                // Construct the versioned filename.
-                let filename = match expected_checksum.get(0..7) {
-                    Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
-                    _ => format!("{}.{}", $fname, "usrs"),
-                };
+                    // Construct the versioned filename.
+                    let filename = match expected_checksum.get(0..7) {
+                        Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
+                        _ => format!("{}.{}", $fname, "usrs"),
+                    };
 
-                impl_load_bytes_logic_remote!(
-                    $remote_url,
-                    $local_dir,
-                    &filename,
-                    metadata,
-                    expected_checksum,
-                    expected_size
-                );
+                    impl_load_bytes_logic_remote!(
+                        $remote_url,
+                        $local_dir,
+                        &filename,
+                        metadata,
+                        expected_checksum,
+                        expected_size
+                    );
+                }
+
+                #[cfg(feature = "cosmwasm")]
+                unimplemented!()
             }
         }
         paste::item! {
@@ -368,27 +368,35 @@ macro_rules! impl_remote {
             impl_store_and_remote_fetch!();
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                let expected_checksum: String =
-                    metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
-                let expected_size: usize =
-                    metadata[concat!($ftype, "_size")].to_string().parse().expect("Failed to retrieve the file size");
+                #[cfg(not(feature = "cosmwasm"))]
+                {
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                    let expected_checksum: String =
+                        metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
+                    let expected_size: usize = metadata[concat!($ftype, "_size")]
+                        .to_string()
+                        .parse()
+                        .expect("Failed to retrieve the file size");
 
-                // Construct the versioned filename.
-                let filename = match expected_checksum.get(0..7) {
-                    Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
-                    _ => format!("{}.{}", $fname, $ftype),
-                };
+                    // Construct the versioned filename.
+                    let filename = match expected_checksum.get(0..7) {
+                        Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
+                        _ => format!("{}.{}", $fname, $ftype),
+                    };
 
-                impl_load_bytes_logic_remote!(
-                    $remote_url,
-                    $local_dir,
-                    &filename,
-                    metadata,
-                    expected_checksum,
-                    expected_size
-                );
+                    impl_load_bytes_logic_remote!(
+                        $remote_url,
+                        $local_dir,
+                        &filename,
+                        metadata,
+                        expected_checksum,
+                        expected_size
+                    );
+                }
+
+                #[cfg(feature = "cosmwasm")]
+                unimplemented!()
             }
         }
 
