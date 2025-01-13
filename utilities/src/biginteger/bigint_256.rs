@@ -25,7 +25,6 @@ use crate::{
 
 use anyhow::Result;
 use core::fmt::{Debug, Display};
-use num_bigint::BigUint;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
@@ -199,9 +198,16 @@ impl crate::biginteger::BigInteger for BigInteger256 {
         }
     }
 
+    #[cfg(not(feature = "cosmwasm"))]
     #[inline]
     fn to_biguint(&self) -> num_bigint::BigUint {
-        BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
+        num_bigint::BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
+    }
+
+    #[cfg(feature = "cosmwasm")]
+    #[inline]
+    fn to_biguint(&self) -> num_bigint::BigUint {
+        unimplemented!()
     }
 
     #[inline]

@@ -45,6 +45,7 @@ optional = true
 
 [dependencies.num-bigint]
 version = "0.4"
+optional = true
 
 [dependencies.rand]
 version = "0.8"
@@ -77,8 +78,9 @@ version = "1"
 features = [ "derive" ]
 
 [features]
-default = [ "aleo-std/cpu", "derive", "num_cpus", "std" ]
-derive = [ "snarkvm-utilities-derives" ]
-serial = [ "derive" ]
-std = [ ]
-wasm = [ ]
+default = [ "aleo-std/cpu", "derive", "num_cpus", "std", "num-bigint" ]
+derive = [ "snarkvm-utilities-derives", "num-bigint" ]
+serial = [ "derive", "num-bigint" ]
+std = [ "num-bigint" ]
+wasm = [ "num-bigint" ]
+cosmwasm = [ ]
