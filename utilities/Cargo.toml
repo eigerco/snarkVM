@@ -78,7 +78,7 @@ version = "1"
 features = [ "derive" ]
 
 [dependencies.cosmwasm-std]
-version = "2.2.0"
+version = "2.1.4"
 optional = true
 
 [features]
