@@ -320,7 +320,7 @@ impl Display for BigInteger256 {
         #[cfg(feature = "cosmwasm")]
         {
             let bytes = self.to_bytes_le().unwrap().try_into().unwrap();
-            let num = cosmwasm_std::Uint256::new(bytes);
+            let num = cosmwasm_std::Uint256::from_le_bytes(bytes);
             write!(f, "{}", num)
         }
     }
