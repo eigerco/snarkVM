@@ -92,8 +92,8 @@ pub trait BigInteger:
     #[cfg(not(feature = "cosmwasm"))]
     fn to_biguint(&self) -> num_bigint::BigUint;
 
-    #[cfg(feature = "cosmwasm")]
-    fn to_biguint(&self) -> num_bigint::BigUint;
+    // #[cfg(feature = "cosmwasm")]
+    // fn to_biguint(&self) -> Vec<u8>;
 
     /// Returns a vector for wnaf.
     fn find_wnaf(&self) -> Vec<i64>;
