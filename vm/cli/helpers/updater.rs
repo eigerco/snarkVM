@@ -25,7 +25,7 @@ pub struct Updater;
 impl Updater {
     const SNARKVM_BIN_NAME: &'static str = "snarkvm";
     const SNARKVM_REPO_NAME: &'static str = "snarkvm";
-    const SNARKVM_REPO_OWNER: &'static str = "AleoNet";
+    const SNARKVM_REPO_OWNER: &'static str = "ProvableHQ";
 
     /// Show all available releases for `snarkvm`.
     #[allow(clippy::format_push_string)]

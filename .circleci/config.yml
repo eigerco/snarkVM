@@ -15,7 +15,7 @@ parameters:
     default: xlarge
   twoxlarge:
     type: string
-    default: aleonet/2xlarge
+    default: 2xlarge
 
 orbs:
   windows: circleci/windows@5.0
@@ -682,9 +682,19 @@ jobs:
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
       - run_serial:
-          flags: --lib --bins -- --test-threads=2
+          flags: --lib --bins
           workspace_member: synthesizer
           cache_key: v1.0.0-rust-1.81.0-snarkvm-synthesizer-cache
+
+  synthesizer-mem-heavy:
+    docker:
+      - image: cimg/rust:1.81.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    resource_class: << pipeline.parameters.twoxlarge >>
+    steps:
+      - run_serial:
+          flags: -- --ignored test_deployment_synthesis_overload test_deep_nested_execution_cost
+          workspace_member: synthesizer
+          cache_key: v1.0.0-rust-1.81.0-snarkvm-synthesizer-mem-heavy-cache
 
   synthesizer-integration:
     docker:
@@ -692,7 +702,7 @@ jobs:
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
       - run_serial:
-          flags: --test '*' -- --test-threads=8
+          flags: --test '*' --features test -- --test-threads=8
           workspace_member: synthesizer
           cache_key: v1.0.0-rust-1.81.0-snarkvm-synthesizer-integration-cache
 
@@ -966,6 +976,7 @@ workflows:
       - parameters
       - parameters-uncached
       - synthesizer
+      - synthesizer-mem-heavy
       - synthesizer-integration
       - synthesizer-process
       - synthesizer-process-with-rocksdb

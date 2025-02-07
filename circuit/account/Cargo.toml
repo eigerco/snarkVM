@@ -1,30 +1,30 @@
 [package]
 name = "snarkvm-circuit-account"
-version = "1.1.0"
+version = "1.2.1"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Account circuit library for a decentralized virtual machine"
 homepage = "https://aleo.org"
-repository = "https://github.com/AleoNet/snarkVM"
+repository = "https://github.com/ProvableHQ/snarkVM"
 license = "Apache-2.0"
 edition = "2021"
 
 [dependencies.console]
 package = "snarkvm-console-account"
 path = "../../console/account"
-version = "=1.1.0"
+version = "=1.2.1"
 optional = true
 
 [dependencies.snarkvm-circuit-algorithms]
 path = "../algorithms"
-version = "=1.1.0"
+version = "=1.2.1"
 
 [dependencies.snarkvm-circuit-network]
 path = "../network"
-version = "=1.1.0"
+version = "=1.2.1"
 
 [dependencies.snarkvm-circuit-types]
 path = "../types"
-version = "=1.1.0"
+version = "=1.2.1"
 
 [dev-dependencies.snarkvm-utilities]
 path = "../../utilities"

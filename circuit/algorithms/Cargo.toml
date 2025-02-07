@@ -1,26 +1,26 @@
 [package]
 name = "snarkvm-circuit-algorithms"
-version = "1.1.0"
+version = "1.2.1"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Algorithm circuit library for a decentralized virtual machine"
 homepage = "https://aleo.org"
-repository = "https://github.com/AleoNet/snarkVM"
+repository = "https://github.com/ProvableHQ/snarkVM"
 license = "Apache-2.0"
 edition = "2021"
 
 [dependencies.console]
 package = "snarkvm-console-algorithms"
 path = "../../console/algorithms"
-version = "=1.1.0"
+version = "=1.2.1"
 optional = true
 
 [dependencies.snarkvm-circuit-types]
 path = "../types"
-version = "=1.1.0"
+version = "=1.2.1"
 
 [dependencies.snarkvm-fields]
 path = "../../fields"
-version = "=1.1.0"
+version = "=1.2.1"
 default-features = false
 
 [dev-dependencies.anyhow]

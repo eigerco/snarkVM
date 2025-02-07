@@ -415,7 +415,8 @@ impl<E: PairingEngine> PowersOfBetaG<E> {
                 NUM_POWERS_25 => Degree25::load_bytes()?,
                 NUM_POWERS_26 => Degree26::load_bytes()?,
                 NUM_POWERS_27 => Degree27::load_bytes()?,
-                NUM_POWERS_28 => Degree28::load_bytes()?,
+                // TODO (nkls): restore on CI.
+                // NUM_POWERS_28 => Degree28::load_bytes()?,
                 _ => bail!("Cannot download an invalid degree of '{num_powers}'"),
             };
 
@@ -492,7 +493,8 @@ impl<E: PairingEngine> PowersOfBetaG<E> {
                 NUM_POWERS_24 => ShiftedDegree24::load_bytes()?,
                 NUM_POWERS_25 => ShiftedDegree25::load_bytes()?,
                 NUM_POWERS_26 => ShiftedDegree26::load_bytes()?,
-                NUM_POWERS_27 => ShiftedDegree27::load_bytes()?,
+                // TODO (nkls): restore on CI.
+                // NUM_POWERS_27 => ShiftedDegree27::load_bytes()?,
                 _ => bail!("Cannot download an invalid degree of '{num_powers}'"),
             };
 

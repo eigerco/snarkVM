@@ -915,6 +915,7 @@ finalize test:
     }
 
     #[test]
+    #[ignore = "memory-intensive"]
     fn test_deep_nested_execution_cost() {
         // Initialize an RNG.
         let rng = &mut TestRng::default();

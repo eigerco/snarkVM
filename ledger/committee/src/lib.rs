@@ -63,6 +63,8 @@ impl<N: Network> Committee<N> {
     pub const COMMITTEE_LOOKBACK_RANGE: u64 = BatchHeader::<N>::MAX_GC_ROUNDS as u64;
     /// The maximum number of members that may be in a committee.
     pub const MAX_COMMITTEE_SIZE: u16 = BatchHeader::<N>::MAX_CERTIFICATES;
+    /// The maximum number of members that may be in a committee before consensus V3 rules apply.
+    pub const MAX_COMMITTEE_SIZE_BEFORE_V3: u16 = BatchHeader::<N>::MAX_CERTIFICATES_BEFORE_V3;
 
     /// Initializes a new `Committee` instance.
     pub fn new_genesis(members: IndexMap<Address<N>, (u64, bool, u8)>) -> Result<Self> {
@@ -465,7 +467,18 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_maximum_committee_size() {
+        assert_eq!(
+            Committee::<CurrentNetwork>::MAX_COMMITTEE_SIZE_BEFORE_V3,
+            BatchHeader::<CurrentNetwork>::MAX_CERTIFICATES_BEFORE_V3
+        );
         assert_eq!(Committee::<CurrentNetwork>::MAX_COMMITTEE_SIZE, BatchHeader::<CurrentNetwork>::MAX_CERTIFICATES);
+        // Adding explicit check that updates to the maximum committee size are strictly increasing. A decreasing maximum will
+        // require additional migration logic based on a `round` number.
+        assert!(
+            Committee::<CurrentNetwork>::MAX_COMMITTEE_SIZE_BEFORE_V3
+                <= Committee::<CurrentNetwork>::MAX_COMMITTEE_SIZE
+        );
     }
 }

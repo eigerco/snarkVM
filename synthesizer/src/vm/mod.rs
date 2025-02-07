@@ -1356,6 +1356,7 @@ function call_fee_private:
     }
 
     #[test]
+    #[ignore = "memory-intensive"]
     fn test_deployment_synthesis_overload() {
         let rng = &mut TestRng::default();
 

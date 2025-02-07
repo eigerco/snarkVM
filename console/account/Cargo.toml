@@ -1,10 +1,10 @@
 [package]
 name = "snarkvm-console-account"
-version = "1.1.0"
+version = "1.2.1"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Account operations for a decentralized virtual machine"
 homepage = "https://aleo.org"
-repository = "https://github.com/AleoNet/snarkVM"
+repository = "https://github.com/ProvableHQ/snarkVM"
 license = "Apache-2.0"
 edition = "2021"
 
@@ -15,11 +15,11 @@ harness = false
 
 [dependencies.snarkvm-console-network]
 path = "../network"
-version = "=1.1.0"
+version = "=1.2.1"
 
 [dependencies.snarkvm-console-types]
 path = "../types"
-version = "=1.1.0"
+version = "=1.2.1"
 default-features = false
 features = [ "address", "boolean", "field", "group", "scalar" ]
 

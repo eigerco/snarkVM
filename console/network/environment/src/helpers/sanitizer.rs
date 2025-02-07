@@ -117,8 +117,9 @@ impl Sanitizer {
     ///
     /// Discard any leading newline.
     fn str_till_eol(string: &str) -> ParserResult<&str> {
-        // A heuristic approach is applied here in order to avoid
-        // costly parsing operations in the most common scenarios.
+        // A heuristic approach is applied here in order to avoid costly parsing operations in the
+        // most common scenarios: non-parsing methods are used to verify if the string has multiple
+        // lines and if there are any unsafe characters.
         if let Some((before, after)) = string.split_once('\n') {
             let is_multiline = before.ends_with('\\');
 
@@ -128,7 +129,9 @@ impl Sanitizer {
                 if !contains_unsafe_chars {
                     Ok((after, before))
                 } else {
-                    recognize(Self::till(value((), Sanitizer::parse_safe_char), Self::eol))(before)
+                    // `eoi` is used here instead of `eol`, since the earlier call to `split_once`
+                    // already removed the newline
+                    recognize(Self::till(value((), Sanitizer::parse_safe_char), Self::eoi))(before)
                 }
             } else {
                 map(
@@ -276,6 +279,23 @@ mod tests {
         assert_eq!(
             ("hello world", "// hel\u{4141}lo\n"),
             Sanitizer::parse_comments("// hel\u{4141}lo\nhello world").unwrap()
+        );
+        assert_eq!(
+            ("hello world", "/* multi\n   line comment\n*/\n"),
+            Sanitizer::parse_comments("/* multi\n   line comment\n*/\nhello world").unwrap()
+        );
+        assert_eq!(
+            ("hello world", "// multiple\n// line\n// comments\n"),
+            Sanitizer::parse_comments("// multiple\n// line\n// comments\nhello world").unwrap()
+        );
+        assert_eq!(
+            ("hello world", "/* multi\n   line comment\n*/\n/* and\n   another\n   one\n*/\n"),
+            Sanitizer::parse_comments("/* multi\n   line comment\n*/\n/* and\n   another\n   one\n*/\nhello world")
+                .unwrap()
+        );
+        assert_eq!(
+            ("hello world", "/* multi\n   line comment\n*/\n// two single\n// line comments\n/* and\n   another\n   multi-liner\n*/\n"),
+            Sanitizer::parse_comments("/* multi\n   line comment\n*/\n// two single\n// line comments\n/* and\n   another\n   multi-liner\n*/\nhello world").unwrap()
         );
         assert!(Sanitizer::parse_comments("// hel\x08lo\nhello world").is_err());
         assert!(Sanitizer::parse_comments("// hel\u{2066}lo\nhello world").is_err());

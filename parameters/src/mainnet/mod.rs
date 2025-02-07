@@ -41,7 +41,12 @@ impl_remote!(Degree24, REMOTE_URL, "resources/", "powers-of-beta-24", "usrs");
 impl_remote!(Degree25, REMOTE_URL, "resources/", "powers-of-beta-25", "usrs");
 impl_remote!(Degree26, REMOTE_URL, "resources/", "powers-of-beta-26", "usrs");
 impl_remote!(Degree27, REMOTE_URL, "resources/", "powers-of-beta-27", "usrs");
-impl_remote!(Degree28, REMOTE_URL, "resources/", "powers-of-beta-28", "usrs");
+// TODO (nkls): restore on CI.
+// The SRS is only used for proving and we don't currently support provers of
+// this size. When a users wants to create a proof, they load the appropriate
+// powers for the circuit in `batch_circuit_setup` which calls `max_degree`
+// based on the domain size.
+// impl_remote!(Degree28, REMOTE_URL, "resources/", "powers-of-beta-28", "usrs");
 
 // Shifted Degrees
 #[cfg(not(feature = "wasm"))]
@@ -62,7 +67,9 @@ impl_remote!(ShiftedDegree23, REMOTE_URL, "resources/", "shifted-powers-of-beta-
 impl_remote!(ShiftedDegree24, REMOTE_URL, "resources/", "shifted-powers-of-beta-24", "usrs");
 impl_remote!(ShiftedDegree25, REMOTE_URL, "resources/", "shifted-powers-of-beta-25", "usrs");
 impl_remote!(ShiftedDegree26, REMOTE_URL, "resources/", "shifted-powers-of-beta-26", "usrs");
-impl_remote!(ShiftedDegree27, REMOTE_URL, "resources/", "shifted-powers-of-beta-27", "usrs");
+// TODO (nkls): restore on CI.
+// See `Degree28` above for context.
+// impl_remote!(ShiftedDegree27, REMOTE_URL, "resources/", "shifted-powers-of-beta-27", "usrs");
 
 // Powers of Beta Times Gamma * G
 impl_local!(Gamma, "resources/", "powers-of-beta-gamma", "usrs");

@@ -104,7 +104,11 @@ impl<N: Network> Process<N> {
         lap!(timer, "Verify the number of transitions");
 
         // Construct the call graph.
-        let call_graph = self.construct_call_graph(execution)?;
+        // If the height is greater than or equal to `CONSENSUS_V3_HEIGHT`, then provide an empty call graph, as it is no longer used during finalization.
+        let call_graph = match state.block_height() < N::CONSENSUS_V3_HEIGHT {
+            true => self.construct_call_graph(execution)?,
+            false => HashMap::new(),
+        };
 
         atomic_batch_scope!(store, {
             // Finalize the root transition.
@@ -160,9 +164,11 @@ fn finalize_fee_transition<N: Network, P: FinalizeStorage<N>>(
     fee: &Fee<N>,
 ) -> Result<Vec<FinalizeOperation<N>>> {
     // Construct the call graph.
-    let mut call_graph = HashMap::new();
-    // Insert the fee transition.
-    call_graph.insert(*fee.transition_id(), Vec::new());
+    // If the height is greater than or equal to `CONSENSUS_V3_HEIGHT`, then provide an empty call graph, as it is no longer used during finalization.
+    let call_graph = match state.block_height() < N::CONSENSUS_V3_HEIGHT {
+        true => HashMap::from([(*fee.transition_id(), Vec::new())]),
+        false => HashMap::new(),
+    };
 
     // Finalize the transition.
     match finalize_transition(state, store, stack, fee, call_graph) {
@@ -208,8 +214,12 @@ fn finalize_transition<N: Network, P: FinalizeStorage<N>>(
     // Initialize a stack of active finalize states.
     let mut states = Vec::new();
 
+    // Initialize a nonce for the finalize registers.
+    // Note that this nonce must be unique for each sub-transition being finalized.
+    let mut nonce = 0;
+
     // Initialize the top-level finalize state.
-    states.push(initialize_finalize_state(state, future, stack, *transition.id())?);
+    states.push(initialize_finalize_state(state, future, stack, *transition.id(), nonce)?);
 
     // While there are active finalize states, finalize them.
     'outer: while let Some(FinalizeState {
@@ -263,20 +273,31 @@ fn finalize_transition<N: Network, P: FinalizeStorage<N>>(
                         await_.register()
                     );
 
-                    // Get the current transition ID.
-                    let transition_id = registers.transition_id();
-                    // Get the child transition ID.
-                    let child_transition_id = match call_graph.get(transition_id) {
-                        Some(transitions) => match transitions.get(call_counter) {
-                            Some(transition_id) => *transition_id,
-                            None => bail!("Child transition ID not found."),
-                        },
-                        None => bail!("Transition ID '{transition_id}' not found in call graph"),
+                    // Get the transition ID used to initialize the finalize registers.
+                    // If the block height is greater than or equal to `CONSENSUS_V3_HEIGHT`, then use the top-level transition ID.
+                    // Otherwise, query the call graph for the child transition ID corresponding to the future that is being awaited.
+                    let transition_id = match state.block_height() < N::CONSENSUS_V3_HEIGHT {
+                        true => {
+                            // Get the current transition ID.
+                            let transition_id = registers.transition_id();
+                            // Get the child transition ID.
+                            match call_graph.get(transition_id) {
+                                Some(transitions) => match transitions.get(call_counter) {
+                                    Some(transition_id) => *transition_id,
+                                    None => bail!("Child transition ID not found."),
+                                },
+                                None => bail!("Transition ID '{transition_id}' not found in call graph"),
+                            }
+                        }
+                        false => *transition.id(),
                     };
+
+                    // Increment the nonce.
+                    nonce += 1;
 
                     // Set up the finalize state for the await.
                     let callee_state =
-                        match try_vm_runtime!(|| setup_await(state, await_, stack, &registers, child_transition_id)) {
+                        match try_vm_runtime!(|| setup_await(state, await_, stack, &registers, transition_id, nonce)) {
                             Ok(Ok(callee_state)) => callee_state,
                             // If the evaluation fails, bail and return the error.
                             Ok(Err(error)) => bail!("'finalize' failed to evaluate command ({command}): {error}"),
@@ -357,6 +378,7 @@ fn initialize_finalize_state<'a, N: Network>(
     future: &Future<N>,
     stack: &'a Stack<N>,
     transition_id: N::TransitionID,
+    nonce: u64,
 ) -> Result<FinalizeState<'a, N>> {
     // Get the finalize logic and the stack.
     let (finalize, stack) = match stack.program_id() == future.program_id() {
@@ -381,6 +403,7 @@ fn initialize_finalize_state<'a, N: Network>(
         transition_id,
         *future.function_name(),
         stack.get_finalize_types(future.function_name())?.clone(),
+        nonce,
     );
 
     // Store the inputs.
@@ -402,6 +425,7 @@ fn setup_await<'a, N: Network>(
     stack: &'a Stack<N>,
     registers: &FinalizeRegisters<N>,
     transition_id: N::TransitionID,
+    nonce: u64,
 ) -> Result<FinalizeState<'a, N>> {
     // Retrieve the input as a future.
     let future = match registers.load(stack, &Operand::Register(await_.register().clone()))? {
@@ -409,7 +433,7 @@ fn setup_await<'a, N: Network>(
         _ => bail!("The input to 'await' is not a future"),
     };
     // Initialize the state.
-    initialize_finalize_state(state, &future, stack, transition_id)
+    initialize_finalize_state(state, &future, stack, transition_id, nonce)
 }
 
 // A helper function that returns the index to branch to.
