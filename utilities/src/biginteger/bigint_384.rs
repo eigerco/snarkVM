@@ -211,12 +211,6 @@ impl BigInteger for BigInteger384 {
         num_bigint::BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
     }
 
-    // #[cfg(feature = "cosmwasm")]
-    // #[inline]
-    // fn to_biguint(&self) -> num_bigint::BigUint {
-    //     unimplemented!()
-    // }
-
     #[inline]
     fn find_wnaf(&self) -> Vec<i64> {
         let mut res = crate::vec::Vec::new();

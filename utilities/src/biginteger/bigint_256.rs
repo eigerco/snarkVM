@@ -204,14 +204,6 @@ impl crate::biginteger::BigInteger for BigInteger256 {
         num_bigint::BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
     }
 
-    // #[cfg(feature = "cosmwasm")]
-    // #[inline]
-    // fn to_biguint(&self) -> cosmwasm_std::Uint256 {
-    //     let bytes = self.to_bytes_le().unwrap().into();
-    //
-    //     cosmwasm_std::Uint256::new(bytes).into()
-    // }
-
     #[inline]
     fn find_wnaf(&self) -> Vec<i64> {
         let mut res = crate::vec::Vec::new();
