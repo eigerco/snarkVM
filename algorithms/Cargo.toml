@@ -196,6 +196,14 @@ wasm = [
   "snark",
   "wasm-bindgen-futures"
 ]
+cosmwasm = [
+  "crypto_hash",
+  "fft",
+  "msm",
+  "polycommit_cosmwasm",
+  "r1cs",
+  "snark",
+]
 cuda = [ "snarkvm-algorithms-cuda" ]
 profiler = [ "aleo-std/profiler" ]
 crypto_hash = [ ]
@@ -204,6 +212,7 @@ msm = [ ]
 test = [ ]
 polycommit = [ "crypto_hash", "fft", "msm", "rand_core" ]
 polycommit_wasm = [ "polycommit", "snarkvm-parameters/wasm" ]
+polycommit_cosmwasm = [ "polycommit", "snarkvm-parameters/cosmwasm" ]
 polycommit_full = [ "polycommit", "snarkvm-parameters/default" ]
 r1cs = [ "cfg-if", "fxhash", "indexmap" ]
 serial = [
