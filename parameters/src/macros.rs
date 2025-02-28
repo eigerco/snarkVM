@@ -32,7 +32,7 @@ macro_rules! checksum_error {
 macro_rules! remove_file {
     ($filepath:expr) => {
         // Safely remove the corrupt file, if it exists.
-        #[cfg(not(feature = "wasm"))]
+        #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))]
         if std::path::PathBuf::from(&$filepath).exists() {
             match std::fs::remove_file(&$filepath) {
                 Ok(()) => println!("Removed {:?}. Please retry the command.", $filepath),
@@ -44,7 +44,7 @@ macro_rules! remove_file {
 
 macro_rules! impl_store_and_remote_fetch {
     () => {
-        #[cfg(not(feature = "wasm"))]
+        #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))]
         fn store_bytes(buffer: &[u8], file_path: &std::path::Path) -> Result<(), $crate::errors::ParameterError> {
             use snarkvm_utilities::Write;
 
@@ -68,7 +68,7 @@ macro_rules! impl_store_and_remote_fetch {
             Ok(())
         }
 
-        #[cfg(not(feature = "wasm"))]
+        #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))]
         fn remote_fetch(buffer: &mut Vec<u8>, url: &str) -> Result<(), $crate::errors::ParameterError> {
             let mut easy = curl::easy::Easy::new();
             easy.follow_location(true)?;
@@ -167,6 +167,7 @@ macro_rules! impl_load_bytes_logic_local {
     };
 }
 
+#[cfg(not(feature = "cosmwasm"))]
 macro_rules! impl_load_bytes_logic_remote {
     ($remote_url: expr, $local_dir: expr, $filename: expr, $metadata: expr, $expected_checksum: expr, $expected_size: expr) => {
         // Compose the correct file path for the parameter file.
@@ -194,7 +195,7 @@ macro_rules! impl_load_bytes_logic_remote {
 
             // Load remote file
             cfg_if::cfg_if! {
-                if #[cfg(not(feature = "wasm"))] {
+                if #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))] {
                     let mut buffer = vec![];
                     Self::remote_fetch(&mut buffer, &url)?;
 
@@ -224,7 +225,7 @@ macro_rules! impl_load_bytes_logic_remote {
                     }
 
                     buffer
-                } else {
+                }  else {
                     return Err($crate::errors::ParameterError::RemoteFetchDisabled);
                 }
             }
@@ -321,27 +322,33 @@ macro_rules! impl_remote {
             impl_store_and_remote_fetch!();
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                let expected_checksum: String =
-                    metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
-                let expected_size: usize =
-                    metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
+                #[cfg(not(feature = "cosmwasm"))]
+                {
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                    let expected_checksum: String =
+                        metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
+                    let expected_size: usize =
+                        metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
 
-                // Construct the versioned filename.
-                let filename = match expected_checksum.get(0..7) {
-                    Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
-                    _ => format!("{}.{}", $fname, "usrs"),
-                };
+                    // Construct the versioned filename.
+                    let filename = match expected_checksum.get(0..7) {
+                        Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
+                        _ => format!("{}.{}", $fname, "usrs"),
+                    };
 
-                impl_load_bytes_logic_remote!(
-                    $remote_url,
-                    $local_dir,
-                    &filename,
-                    metadata,
-                    expected_checksum,
-                    expected_size
-                );
+                    impl_load_bytes_logic_remote!(
+                        $remote_url,
+                        $local_dir,
+                        &filename,
+                        metadata,
+                        expected_checksum,
+                        expected_size
+                    );
+                }
+
+                #[cfg(feature = "cosmwasm")]
+                unimplemented!()
             }
         }
         paste::item! {
@@ -361,27 +368,35 @@ macro_rules! impl_remote {
             impl_store_and_remote_fetch!();
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                let expected_checksum: String =
-                    metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
-                let expected_size: usize =
-                    metadata[concat!($ftype, "_size")].to_string().parse().expect("Failed to retrieve the file size");
+                #[cfg(not(feature = "cosmwasm"))]
+                {
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                    let expected_checksum: String =
+                        metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
+                    let expected_size: usize = metadata[concat!($ftype, "_size")]
+                        .to_string()
+                        .parse()
+                        .expect("Failed to retrieve the file size");
 
-                // Construct the versioned filename.
-                let filename = match expected_checksum.get(0..7) {
-                    Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
-                    _ => format!("{}.{}", $fname, $ftype),
-                };
+                    // Construct the versioned filename.
+                    let filename = match expected_checksum.get(0..7) {
+                        Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
+                        _ => format!("{}.{}", $fname, $ftype),
+                    };
 
-                impl_load_bytes_logic_remote!(
-                    $remote_url,
-                    $local_dir,
-                    &filename,
-                    metadata,
-                    expected_checksum,
-                    expected_size
-                );
+                    impl_load_bytes_logic_remote!(
+                        $remote_url,
+                        $local_dir,
+                        &filename,
+                        metadata,
+                        expected_checksum,
+                        expected_size
+                    );
+                }
+
+                #[cfg(feature = "cosmwasm")]
+                unimplemented!()
             }
         }
 

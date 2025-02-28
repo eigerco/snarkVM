@@ -58,7 +58,7 @@ members = [
   "console/types/group",
   "console/types/integers",
   "console/types/scalar",
-  "console/types/string",
+  "console/types/string", "cosmwasm",
   "curves",
   "fields",
   "ledger",
@@ -149,6 +149,7 @@ parameters = [ "snarkvm-parameters" ]
 synthesizer = [ "snarkvm-synthesizer" ]
 utilities = [ "snarkvm-utilities" ]
 wasm = [ "snarkvm-wasm" ]
+cosmwasm = [ "snarkvm-cosmwasm" ]
 test_targets = [ "snarkvm-console/test_targets" ]
 
 [dependencies.snarkvm-algorithms]
@@ -206,6 +207,12 @@ optional = true
 path = "./wasm"
 version = "=1.1.0"
 optional = true
+
+[dependencies.snarkvm-cosmwasm]
+path = "./cosmwasm"
+version = "=1.1.0"
+optional = true
+
 
 [dependencies.anstyle]
 version = "1"
