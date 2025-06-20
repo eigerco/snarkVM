@@ -3646,6 +3646,7 @@ dependencies = [
  "snarkvm-console-network",
  "snarkvm-console-program",
  "snarkvm-console-types",
+ "snarkvm-ledger",
 ]
 
 [[package]]

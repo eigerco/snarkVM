@@ -13,6 +13,7 @@ account = ["snarkvm-console-account"]
 network = ["snarkvm-console-network"]
 types = ["snarkvm-console-types"]
 program = ["snarkvm-console-program"]
+ledger = ["snarkvm-ledger"]
 
 [dependencies.snarkvm-console-account]
 path = "../console/account"
@@ -40,3 +41,8 @@ optional = true
 [dependencies.getrandom]
 version = "0.2"
 features = ["custom"]
+
+[dependencies.snarkvm-ledger]
+path = "../ledger"
+version = "=3.7.1"
+optional = true
