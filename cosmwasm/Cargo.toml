@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-cosmwasm"
-version = "3.7.1"
+version = "3.8.0"
 edition = "2021"
 
 [lib]
@@ -17,25 +17,25 @@ ledger = ["snarkvm-ledger"]
 
 [dependencies.snarkvm-console-account]
 path = "../console/account"
-version = "=3.7.1"
+version = "=3.8.0"
 optional = true
 
 [dependencies.snarkvm-console-network]
 path = "../console/network"
-version = "=3.7.1"
+version = "=3.8.0"
 features = ["cosmwasm"]
 optional = true
 
 [dependencies.snarkvm-console-types]
 path = "../console/types"
-version = "=3.7.1"
+version = "=3.8.0"
 default-features = false
 features = ["address"]
 optional = true
 
 [dependencies.snarkvm-console-program]
 path = "../console/program"
-version = "=3.7.1"
+version = "=3.8.0"
 optional = true
 
 [dependencies.getrandom]
@@ -44,5 +44,5 @@ features = ["custom"]
 
 [dependencies.snarkvm-ledger]
 path = "../ledger"
-version = "=3.7.1"
+version = "=3.8.0"
 optional = true
