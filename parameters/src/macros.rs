@@ -225,7 +225,7 @@ macro_rules! impl_load_bytes_logic_remote {
                     }
 
                     buffer
-                }  else {
+                } else {
                     return Err($crate::errors::ParameterError::RemoteFetchDisabled);
                 }
             }
@@ -348,7 +348,7 @@ macro_rules! impl_remote {
                 }
 
                 #[cfg(feature = "cosmwasm")]
-                unimplemented!()
+                unimplemented!("cosmwasm feature is not supported for remote parameters");
             }
         }
         paste::item! {
