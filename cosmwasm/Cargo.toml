@@ -7,15 +7,13 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = [ "console" ]
-console = [ "snarkvm-console" ]
+cosmwasm = [ "snarkvm-console/cosmwasm", "getrandom" ]
 
 [dependencies.snarkvm-console]
 path = "../console"
 version = "=3.8.0"
-features = [ "cosmwasm" ]
-optional = true
 
 [dependencies.getrandom]
 version = "0.2"
 features = ["custom"]
+optional = true
