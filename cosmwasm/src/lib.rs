@@ -13,11 +13,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "account")]
-pub use snarkvm_console_account as account;
-#[cfg(feature = "network")]
-pub use snarkvm_console_network as network;
-#[cfg(feature = "types")]
-pub use snarkvm_console_types as types;
-#[cfg(feature = "program")]
-pub use snarkvm_console_program as program;
+#[cfg(feature = "console")]
+pub use snarkvm_console as console;

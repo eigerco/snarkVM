@@ -3839,11 +3839,7 @@ name = "snarkvm-cosmwasm"
 version = "3.8.0"
 dependencies = [
  "getrandom 0.2.16",
- "snarkvm-console-account",
- "snarkvm-console-network",
- "snarkvm-console-program",
- "snarkvm-console-types",
- "snarkvm-ledger",
+ "snarkvm-console",
 ]
 
 [[package]]

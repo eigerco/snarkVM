@@ -48,6 +48,7 @@ default = [
   "types"
 ]
 wasm = [ "snarkvm-console-network/wasm" ]
+cosmwasm = [ "snarkvm-console-network/cosmwasm" ]
 test = [
   "snarkvm-console-account/test",
   "snarkvm-console-network/test",

@@ -224,7 +224,6 @@ path = "./cosmwasm"
 version = "=3.8.0"
 optional = true
 
-
 [dependencies.anstyle]
 version = "1"
 
