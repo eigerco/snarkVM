@@ -77,17 +77,9 @@ version = "2.1.4"
 optional = true
 
 [features]
-<<<<<<< HEAD
-default = [ "aleo-std/cpu", "derive", "num_cpus", "std", "num-bigint" ]
-derive = [ "snarkvm-utilities-derives", "num-bigint" ]
-serial = [ "derive", "num-bigint" ]
-std = [ "num-bigint" ]
-wasm = [ "num-bigint" ]
-cosmwasm = [ "cosmwasm-std" ]
-=======
 default = [ "derive" ]
 derive = [ "snarkvm-utilities-derives" ]
 dev-print = [ ]
 serial = [ "derive" ]
 wasm = [ ]
->>>>>>> upstream/staging
+cosmwasm = [ "cosmwasm-std" ]
