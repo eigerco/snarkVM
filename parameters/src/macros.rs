@@ -174,36 +174,6 @@ macro_rules! impl_load_bytes_logic_remote {
                 file_path.push($local_dir);
                 file_path.push($filename);
 
-<<<<<<< HEAD
-        let buffer = if file_path.exists() {
-            // Attempts to load the parameter file locally with an absolute path.
-            std::fs::read(&file_path)?
-        } else {
-            // Downloads the missing parameters and stores it in the local directory for use.
-             #[cfg(not(feature = "no_std_out"))]
-            {
-                use colored::*;
-                let path = format!("(in {:?})", file_path);
-                eprintln!(
-                    "\n⚠️  \"{}\" does not exist. Downloading and storing it {}.\n",
-                    $filename, path.dimmed()
-                );
-            }
-
-            // Construct the URL.
-            let url = format!("{}/{}", $remote_url, $filename);
-
-            // Load remote file
-            cfg_if::cfg_if! {
-                if #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))] {
-                    let mut buffer = vec![];
-                    Self::remote_fetch(&mut buffer, &url)?;
-
-                    // Ensure the checksum matches.
-                    let candidate_checksum = checksum!(&buffer);
-                    if $expected_checksum != candidate_checksum {
-                        return checksum_error!($expected_checksum, candidate_checksum)
-=======
                 let buffer = if file_path.exists() {
                     // Attempts to load the parameter file locally with an absolute path.
                     std::fs::read(&file_path)?
@@ -217,7 +187,6 @@ macro_rules! impl_load_bytes_logic_remote {
                             "\n⚠️  \"{}\" does not exist. Downloading and storing it {}.\n",
                             $filename, path.dimmed()
                         );
->>>>>>> upstream/staging
                     }
 
                     // Construct the URL.
