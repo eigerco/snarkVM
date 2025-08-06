@@ -22,12 +22,8 @@ pub use powers::*;
 /// The restrictions list as a JSON-compatible string.
 pub const RESTRICTIONS_LIST: &str = include_str!("./resources/restrictions.json");
 
-<<<<<<< HEAD
 #[cfg(not(feature = "cosmwasm"))]
-const REMOTE_URL: &str = "https://parameters.aleo.org/mainnet";
-=======
 const REMOTE_URL: &str = "https://parameters.provable.com/mainnet";
->>>>>>> v4.0.0
 
 // Degrees
 #[cfg(not(feature = "wasm"))]
