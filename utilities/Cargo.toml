@@ -42,7 +42,6 @@ version = "1"
 
 [dependencies.num-bigint]
 version = "0.4"
-optional = true
 
 [dependencies.rand]
 workspace = true

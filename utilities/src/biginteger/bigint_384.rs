@@ -28,7 +28,6 @@ use crate::{
 };
 
 use anyhow::Result;
-use num_bigint::BigUint;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
