@@ -28,7 +28,7 @@ impl<'de, N: Network> Deserialize<'de> for ComputeKey<N> {
         FromBytesDeserializer::<Self>::deserialize(
             deserializer,
             "compute key",
-            2 * ((N::Field::size_in_bits() + 7) / 8),
+            2 * N::Field::size_in_bits().div_ceil(8),
         )
     }
 }

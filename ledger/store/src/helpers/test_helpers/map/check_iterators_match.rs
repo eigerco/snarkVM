@@ -65,7 +65,7 @@ pub fn check_iterators_match(map: impl for<'a> Map<'a, usize, String>) {
     const NUM_TOTAL_ITEMS: usize = 20;
 
     for i in 0..NUM_ITEMS {
-        println!("i: {}", i);
+        println!("i: {i}");
 
         // Insert an item into the map.
         map.insert(i, i.to_string()).unwrap();
@@ -80,7 +80,7 @@ pub fn check_iterators_match(map: impl for<'a> Map<'a, usize, String>) {
         map.start_atomic();
 
         for i in NUM_ITEMS..NUM_TOTAL_ITEMS {
-            println!("i: {}", i);
+            println!("i: {i}");
 
             // Insert an item into the map.
             map.insert(i, i.to_string()).unwrap();

@@ -51,7 +51,7 @@ fn standard_window<G: AffineCurve>(
 
     // We only process unit scalars once in the first window.
     if w_start == 0 {
-        scalars.iter().zip(bases).filter(|(&s, _)| s == fr_one).for_each(|(_, base)| {
+        scalars.iter().zip(bases).filter(|&(&s, _)| s == fr_one).for_each(|(_, base)| {
             res.add_assign_mixed(base);
         });
     }
@@ -62,7 +62,7 @@ fn standard_window<G: AffineCurve>(
     scalars
         .iter()
         .zip(bases)
-        .filter(|(&s, _)| s > fr_one)
+        .filter(|&(&s, _)| s > fr_one)
         .for_each(|(&scalar, base)| update_buckets(base, scalar, w_start, c, &mut buckets));
     // G::Projective::batch_normalization(&mut buckets);
 

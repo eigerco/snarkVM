@@ -47,9 +47,9 @@ impl<E: Environment, I: IntegerType, M: Magnitude> ShrWrapped<Integer<E, M>> for
 
                 match I::is_signed() {
                     // Sign-extend `self` by `shift_amount`.
-                    true => bits_le.extend(core::iter::repeat(self.msb().clone()).take(shift_amount)),
+                    true => bits_le.extend(core::iter::repeat_n(self.msb().clone(), shift_amount)),
                     // Zero-extend `self` by `shift_amount`.
-                    false => bits_le.extend(core::iter::repeat(Boolean::constant(false)).take(shift_amount)),
+                    false => bits_le.extend(core::iter::repeat_n(Boolean::constant(false), shift_amount)),
                 };
 
                 bits_le.reverse();

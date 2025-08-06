@@ -28,7 +28,7 @@ use snarkvm_utilities::ExecutionPool;
 
 use anyhow::Result;
 use itertools::Itertools;
-use rand_core::RngCore;
+use rand::RngCore;
 use std::collections::{BTreeMap, VecDeque};
 
 struct LinevalPrepInstance<F: PrimeField> {
@@ -152,7 +152,7 @@ impl<F: PrimeField, SM: SNARKMode> AHPForR1CS<F, SM> {
                     state.circuit_specific_states.get_mut(circuit_a).unwrap().z_m_at_alpha_polys =
                         Some(z_m_at_alpha_polys);
                 }
-                Some(ref mut z_m_at_alpha_polys) => {
+                Some(z_m_at_alpha_polys) => {
                     z_m_at_alpha_polys.push_back([
                         lineval_a.z_m_at_alpha,
                         lineval_b.z_m_at_alpha,

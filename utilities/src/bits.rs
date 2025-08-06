@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Vec;
-
 use anyhow::{Result, ensure};
 
 /// Takes as input a sequence of objects, and converts them to a series of little-endian bits.
@@ -22,12 +20,12 @@ use anyhow::{Result, ensure};
 #[macro_export]
 macro_rules! to_bits_le {
     ($($x:expr),*) => ({
-        let mut buffer = $crate::vec![];
+        let mut buffer = vec![];
         $($x.write_bits_le(&mut buffer);)*
         buffer
     });
     ($($x:expr),*; $size:expr) => ({
-        let mut buffer = $crate::Vec::with_capacity($size);
+        let mut buffer = Vec::with_capacity($size);
         $($x.write_bits_le(&mut buffer);)*
         buffer
     });
@@ -365,7 +363,7 @@ mod tests {
         // I128
         check!((0..100).map(|_| Uniform::rand(rng)).collect::<Vec<i128>>());
         // String
-        check!((0..100).map(|_| random_string(rng.gen(), rng)).collect::<Vec<String>>());
+        check!((0..100).map(|_| random_string(rng.r#gen(), rng)).collect::<Vec<String>>());
         // Vec<Vec<u8>>
         check!((0..100).map(|_| (0..128).map(|_| Uniform::rand(rng)).collect::<Vec<u8>>()).collect::<Vec<_>>());
         // Vec<Vec<u16>>
@@ -389,7 +387,7 @@ mod tests {
         // Vec<Vec<String>>
         check!(
             (0..100)
-                .map(|_| (0..128).map(|_| random_string(rng.gen(), rng)).collect::<Vec<String>>())
+                .map(|_| (0..128).map(|_| random_string(rng.r#gen(), rng)).collect::<Vec<String>>())
                 .collect::<Vec<_>>()
         );
     }

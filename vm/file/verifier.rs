@@ -203,7 +203,7 @@ mod tests {
     type CurrentAleo = snarkvm_circuit::AleoV0;
 
     fn temp_dir() -> std::path::PathBuf {
-        tempfile::tempdir().expect("Failed to open temporary directory").into_path()
+        tempfile::tempdir().expect("Failed to open temporary directory").keep()
     }
 
     #[test]

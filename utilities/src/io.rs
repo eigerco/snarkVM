@@ -13,9 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! no-std io replacement
-use crate::Vec;
-use core::{cmp, mem};
+use std::{cmp, mem};
 
 #[derive(Debug)]
 pub struct Error;

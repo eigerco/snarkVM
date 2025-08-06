@@ -31,7 +31,6 @@ impl<E: Environment, const VARIANT: usize> Default for BooleanHash<E, VARIANT> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, const VARIANT: usize> Inject for BooleanHash<E, VARIANT> {
     type Primitive = console::kary_merkle_tree::BooleanHash<VARIANT>;
 
@@ -48,7 +47,6 @@ impl<E: Environment, const VARIANT: usize> Inject for BooleanHash<E, VARIANT> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, const VARIANT: usize> Eject for BooleanHash<E, VARIANT> {
     type Primitive = console::kary_merkle_tree::BooleanHash<VARIANT>;
 

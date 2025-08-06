@@ -23,8 +23,8 @@ use console::{
     prelude::*,
     program::{Identifier, Literal, LiteralType, Register},
 };
+use snarkvm_synthesizer_process::{Process, Stack};
 use snarkvm_synthesizer_program::{AssertEq, AssertInstruction, AssertNeq, Opcode, Operand, Program};
-use synthesizer_process::{Process, Stack};
 
 type CurrentNetwork = MainnetV0;
 type CurrentAleo = AleoV0;

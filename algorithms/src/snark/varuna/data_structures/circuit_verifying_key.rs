@@ -15,14 +15,9 @@
 
 use crate::{polycommit::sonic_pc, snark::varuna::ahp::indexer::*};
 use snarkvm_curves::PairingEngine;
-use snarkvm_utilities::{
-    FromBytes,
-    FromBytesDeserializer,
-    ToBytes,
-    ToBytesSerializer,
-    error,
+use snarkvm_utilities::{FromBytes, FromBytesDeserializer, ToBytes, ToBytesSerializer, error, serialize::*};
+use std::{
     io::{self, Read, Write},
-    serialize::*,
     string::String,
 };
 

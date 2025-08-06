@@ -15,7 +15,6 @@
 
 use crate::r1cs::{ConstraintSystem as CS, Index as VarIndex, LinearCombination, Variable, errors::SynthesisError};
 use snarkvm_fields::Field;
-use snarkvm_utilities::serialize::*;
 
 use anyhow::Result;
 

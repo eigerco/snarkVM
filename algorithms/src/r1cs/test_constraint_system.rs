@@ -364,9 +364,7 @@ impl<F: Field> TestConstraintSystem<F> {
 
     #[inline]
     fn register_object_in_namespace(&mut self, named_obj: NamedObject) {
-        if let NamedObject::Namespace(ref mut ns) =
-            self.named_objects.get_index_mut(self.current_namespace.idx()).unwrap().1
-        {
+        if let NamedObject::Namespace(ns) = self.named_objects.get_index_mut(self.current_namespace.idx()).unwrap().1 {
             ns.push(named_obj);
         }
     }

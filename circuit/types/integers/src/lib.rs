@@ -17,6 +17,8 @@
 #![allow(clippy::too_many_arguments)]
 #![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
+extern crate snarkvm_console_types_integers as console;
+
 mod helpers;
 
 pub mod abs_checked;
@@ -99,7 +101,6 @@ impl<E: Environment, I: IntegerType> Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> Inject for Integer<E, I> {
     type Primitive = console::Integer<E::Network, I>;
 
@@ -115,7 +116,6 @@ impl<E: Environment, I: IntegerType> Inject for Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> Eject for Integer<E, I> {
     type Primitive = console::Integer<E::Network, I>;
 
@@ -133,7 +133,6 @@ impl<E: Environment, I: IntegerType> Eject for Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> Parser for Integer<E, I> {
     /// Parses a string into an integer circuit.
     #[inline]
@@ -150,7 +149,6 @@ impl<E: Environment, I: IntegerType> Parser for Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> FromStr for Integer<E, I> {
     type Err = Error;
 
@@ -169,7 +167,6 @@ impl<E: Environment, I: IntegerType> FromStr for Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> TypeName for Integer<E, I> {
     /// Returns the type name of the circuit as a string.
     #[inline]
@@ -178,14 +175,12 @@ impl<E: Environment, I: IntegerType> TypeName for Integer<E, I> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> Debug for Integer<E, I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, I: IntegerType> Display for Integer<E, I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.eject_value(), self.eject_mode())

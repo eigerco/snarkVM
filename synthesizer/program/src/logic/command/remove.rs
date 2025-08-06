@@ -13,12 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    FinalizeOperation,
-    Opcode,
-    Operand,
-    traits::{FinalizeStoreTrait, RegistersLoad, StackMatches, StackProgram},
-};
+use crate::{FinalizeOperation, FinalizeStoreTrait, Opcode, Operand, RegistersTrait, StackTrait};
 use console::{network::prelude::*, program::Identifier};
 
 /// A remove command, e.g. `remove mapping[r0];`
@@ -27,8 +22,8 @@ use console::{network::prelude::*, program::Identifier};
 pub struct Remove<N: Network> {
     /// The mapping name.
     mapping: Identifier<N>,
-    /// The key to access the mapping.
-    key: Operand<N>,
+    /// The operands
+    operands: [Operand<N>; 1],
 }
 
 impl<N: Network> Remove<N> {
@@ -40,8 +35,8 @@ impl<N: Network> Remove<N> {
 
     /// Returns the operands in the operation.
     #[inline]
-    pub fn operands(&self) -> Vec<Operand<N>> {
-        vec![self.key.clone()]
+    pub fn operands(&self) -> &[Operand<N>] {
+        &self.operands
     }
 
     /// Returns the mapping name.
@@ -53,26 +48,25 @@ impl<N: Network> Remove<N> {
     /// Returns the operand containing the key.
     #[inline]
     pub const fn key(&self) -> &Operand<N> {
-        &self.key
+        &self.operands[0]
     }
 }
 
 impl<N: Network> Remove<N> {
     /// Finalizes the command.
-    #[inline]
     pub fn finalize(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &impl StackTrait<N>,
         store: &impl FinalizeStoreTrait<N>,
-        registers: &mut impl RegistersLoad<N>,
+        registers: &mut impl RegistersTrait<N>,
     ) -> Result<Option<FinalizeOperation<N>>> {
-        // Ensure the mapping exists in storage.
-        if !store.contains_mapping_confirmed(stack.program_id(), &self.mapping)? {
-            bail!("Mapping '{}/{}' does not exist in storage", stack.program_id(), self.mapping);
+        // Ensure the mapping exists.
+        if !store.contains_mapping_speculative(stack.program_id(), &self.mapping)? {
+            bail!("Mapping '{}/{}' does not exist", stack.program_id(), self.mapping);
         }
 
         // Load the key operand as a plaintext.
-        let key = registers.load_plaintext(stack, &self.key)?;
+        let key = registers.load_plaintext(stack, self.key())?;
         // Update the value in storage, and return the finalize operation.
         store.remove_key_value(*stack.program_id(), self.mapping, &key)
     }
@@ -80,7 +74,6 @@ impl<N: Network> Remove<N> {
 
 impl<N: Network> Parser for Remove<N> {
     /// Parses a string into an operation.
-    #[inline]
     fn parse(string: &str) -> ParserResult<Self> {
         // Parse the whitespace and comments from the string.
         let (string, _) = Sanitizer::parse(string)?;
@@ -106,7 +99,7 @@ impl<N: Network> Parser for Remove<N> {
         // Parse the ";" from the string.
         let (string, _) = tag(";")(string)?;
 
-        Ok((string, Self { mapping, key }))
+        Ok((string, Self { mapping, operands: [key] }))
     }
 }
 
@@ -114,7 +107,6 @@ impl<N: Network> FromStr for Remove<N> {
     type Err = Error;
 
     /// Parses a string into the command.
-    #[inline]
     fn from_str(string: &str) -> Result<Self> {
         match Self::parse(string) {
             Ok((remainder, object)) => {
@@ -139,7 +131,7 @@ impl<N: Network> Display for Remove<N> {
     /// Prints the command to a string.
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // Print the command, mapping, and key operand.
-        write!(f, "{} {}[{}];", Self::opcode(), self.mapping, self.key)
+        write!(f, "{} {}[{}];", Self::opcode(), self.mapping, self.key())
     }
 }
 
@@ -151,7 +143,7 @@ impl<N: Network> FromBytes for Remove<N> {
         // Read the key operand.
         let key = Operand::read_le(&mut reader)?;
         // Return the command.
-        Ok(Self { mapping, key })
+        Ok(Self { mapping, operands: [key] })
     }
 }
 
@@ -161,7 +153,7 @@ impl<N: Network> ToBytes for Remove<N> {
         // Write the mapping name.
         self.mapping.write_le(&mut writer)?;
         // Write the key operand.
-        self.key.write_le(&mut writer)
+        self.key().write_le(&mut writer)
     }
 }
 
@@ -178,6 +170,6 @@ mod tests {
         assert!(string.is_empty(), "Parser did not consume all of the string: '{string}'");
         assert_eq!(remove.mapping, Identifier::from_str("account").unwrap());
         assert_eq!(remove.operands().len(), 1, "The number of operands is incorrect");
-        assert_eq!(remove.key, Operand::Register(Register::Locator(1)), "The first operand is incorrect");
+        assert_eq!(remove.key(), &Operand::Register(Register::Locator(1)), "The first operand is incorrect");
     }
 }

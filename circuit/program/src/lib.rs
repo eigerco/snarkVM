@@ -20,6 +20,11 @@
 #[cfg(test)]
 use snarkvm_circuit_network::AleoV0 as Circuit;
 
+#[cfg(test)]
+extern crate snarkvm_console as console_root;
+
+extern crate snarkvm_console_program as console;
+
 mod data;
 pub use data::*;
 

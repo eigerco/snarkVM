@@ -55,7 +55,6 @@ use rand::{CryptoRng, Rng};
 use std::{borrow::Borrow, collections::BTreeMap, ops::Deref, sync::Arc};
 
 use crate::srs::UniversalProver;
-use snarkvm_utilities::println;
 
 /// The Varuna proof system.
 #[derive(Clone, Debug)]
@@ -344,7 +343,6 @@ where
             &certificate.pc_proof,
             &mut sponge,
         )
-        .map_err(Into::into)
     }
 
     /// This is the main entrypoint for creating proofs.
@@ -805,7 +803,7 @@ where
             return Ok(false);
         }
 
-        let verifier_time = start_timer!(|| format!("Varuna::Verify with batch sizes: {:?}", batch_sizes));
+        let verifier_time = start_timer!(|| format!("Varuna::Verify with batch sizes: {batch_sizes:?}"));
 
         let first_round_info = AHPForR1CS::<E::Fr, SM>::first_round_polynomial_info(batch_sizes.iter());
 

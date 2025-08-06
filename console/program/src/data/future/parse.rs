@@ -290,7 +290,7 @@ mod tests {
                 .repeat(depth);
             let suffix = r"]}".repeat(depth);
             // Concatenate the prefix, root, and suffix to create the nested future.
-            format!("{}{}{}", prefix, root, suffix)
+            format!("{prefix}{root}{suffix}")
         }
 
         // A helper function to test the parsing of a deeply nested future.

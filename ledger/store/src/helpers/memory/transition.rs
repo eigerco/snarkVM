@@ -223,6 +223,8 @@ pub struct OutputMemory<N: Network> {
     record: MemoryMap<Field<N>, (Field<N>, Option<Record<N, Ciphertext<N>>>)>,
     /// The mapping of `record nonce` to `commitment`.
     record_nonce: MemoryMap<Group<N>, Field<N>>,
+    /// The mapping of `record nonce` to `sender ciphertext`.
+    record_sender: MemoryMap<Group<N>, Option<Field<N>>>,
     /// The mapping of `external hash` to `()`. Note: This is **not** the record commitment.
     external_record: MemoryMap<Field<N>, ()>,
     /// The mapping of `future hash` to `(optional) future`.
@@ -240,6 +242,7 @@ impl<N: Network> OutputStorage<N> for OutputMemory<N> {
     type PrivateMap = MemoryMap<Field<N>, Option<Ciphertext<N>>>;
     type RecordMap = MemoryMap<Field<N>, (Field<N>, Option<Record<N, Ciphertext<N>>>)>;
     type RecordNonceMap = MemoryMap<Group<N>, Field<N>>;
+    type RecordSenderMap = MemoryMap<Group<N>, Option<Field<N>>>;
     type ExternalRecordMap = MemoryMap<Field<N>, ()>;
     type FutureMap = MemoryMap<Field<N>, Option<Future<N>>>;
 
@@ -253,6 +256,7 @@ impl<N: Network> OutputStorage<N> for OutputMemory<N> {
             private: Default::default(),
             record: Default::default(),
             record_nonce: Default::default(),
+            record_sender: Default::default(),
             external_record: Default::default(),
             future: Default::default(),
             storage_mode: storage.into(),
@@ -292,6 +296,11 @@ impl<N: Network> OutputStorage<N> for OutputMemory<N> {
     /// Returns the record nonce map.
     fn record_nonce_map(&self) -> &Self::RecordNonceMap {
         &self.record_nonce
+    }
+    
+    /// Returns the record sender map.
+    fn record_sender_map(&self) -> &Self::RecordSenderMap {
+        &self.record_sender
     }
 
     /// Returns the external record map.

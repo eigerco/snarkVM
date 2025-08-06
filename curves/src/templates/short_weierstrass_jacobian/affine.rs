@@ -19,24 +19,18 @@ use crate::{
     traits::{AffineCurve, ProjectiveCurve, ShortWeierstrassParameters as Parameters},
 };
 use snarkvm_fields::{Field, One, SquareRootField, Zero};
-use snarkvm_utilities::{
-    FromBytes,
-    ToBytes,
-    bititerator::BitIteratorBE,
-    io::{Error, ErrorKind, Read, Result as IoResult, Write},
-    rand::Uniform,
-    serialize::*,
-};
+use snarkvm_utilities::{FromBytes, ToBytes, bititerator::BitIteratorBE, rand::Uniform, serialize::*};
 
-use core::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    ops::{Mul, Neg},
-};
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
 };
 use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    io::{Error, ErrorKind, Read, Result as IoResult, Write},
+    ops::{Mul, Neg},
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Affine<P: Parameters> {
@@ -318,7 +312,7 @@ impl<P: Parameters> Distribution<Affine<P>> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Affine<P> {
         loop {
             let x = P::BaseField::rand(rng);
-            let greatest = rng.gen();
+            let greatest = rng.r#gen();
 
             if let Some(p) = Affine::from_x_coordinate(x, greatest) {
                 return p.mul_by_cofactor();

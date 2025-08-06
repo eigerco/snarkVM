@@ -44,16 +44,10 @@ use crate::{
     CastType,
     FinalizeOperation,
     FinalizeRegistersState,
+    FinalizeStoreTrait,
     Instruction,
-    traits::{
-        CommandTrait,
-        FinalizeStoreTrait,
-        InstructionTrait,
-        RegistersLoad,
-        RegistersStore,
-        StackMatches,
-        StackProgram,
-    },
+    Operand,
+    StackTrait,
 };
 use console::{
     network::prelude::*,
@@ -87,10 +81,54 @@ pub enum Command<N: Network> {
     Position(Position<N>),
 }
 
-impl<N: Network> CommandTrait<N> for Command<N> {
-    /// Returns the destination registers of the command.
+impl<N: Network> Command<N> {
+    /// Returns `true` if the command is an async instruction.
+    pub fn is_async(&self) -> bool {
+        matches!(self, Command::Instruction(Instruction::Async(_)))
+    }
+
+    /// Returns `true` if the command is an await command.
     #[inline]
-    fn destinations(&self) -> Vec<Register<N>> {
+    pub fn is_await(&self) -> bool {
+        matches!(self, Command::Await(_))
+    }
+
+    /// Returns `true` if the command is a call instruction.
+    pub fn is_call(&self) -> bool {
+        matches!(self, Command::Instruction(Instruction::Call(_)))
+    }
+
+    /// Returns `true` if the command is a cast to record instruction.
+    pub fn is_cast_to_record(&self) -> bool {
+        matches!(self, Command::Instruction(Instruction::Cast(cast)) if matches!(cast.cast_type(), CastType::Record(_) | CastType::ExternalRecord(_)))
+    }
+
+    /// Returns `true` if the command is a write operation.
+    pub fn is_write(&self) -> bool {
+        matches!(self, Command::Set(_) | Command::Remove(_))
+    }
+
+    /// Returns the branch target, if the command is a branch command.
+    /// Otherwise, returns `None`.
+    pub fn branch_to(&self) -> Option<&Identifier<N>> {
+        match self {
+            Command::BranchEq(branch_eq) => Some(branch_eq.position()),
+            Command::BranchNeq(branch_neq) => Some(branch_neq.position()),
+            _ => None,
+        }
+    }
+
+    /// Returns the position name, if the command is a position command.
+    /// Otherwise, returns `None`.
+    pub fn position(&self) -> Option<&Identifier<N>> {
+        match self {
+            Command::Position(position) => Some(position.name()),
+            _ => None,
+        }
+    }
+
+    /// Returns the destination registers of the command.
+    pub fn destinations(&self) -> Vec<Register<N>> {
         match self {
             Command::Instruction(instruction) => instruction.destinations(),
             Command::Contains(contains) => vec![contains.destination().clone()],
@@ -106,53 +144,30 @@ impl<N: Network> CommandTrait<N> for Command<N> {
         }
     }
 
-    /// Returns the branch target, if the command is a branch command.
-    /// Otherwise, returns `None`.
+    /// Returns the operands of the command.
     #[inline]
-    fn branch_to(&self) -> Option<&Identifier<N>> {
+    pub fn operands(&self) -> &[Operand<N>] {
         match self {
-            Command::BranchEq(branch_eq) => Some(branch_eq.position()),
-            Command::BranchNeq(branch_neq) => Some(branch_neq.position()),
-            _ => None,
+            Command::Instruction(c) => c.operands(),
+            Command::Await(c) => c.operands(),
+            Command::Contains(c) => c.operands(),
+            Command::Get(c) => c.operands(),
+            Command::GetOrUse(c) => c.operands(),
+            Command::RandChaCha(c) => c.operands(),
+            Command::Remove(c) => c.operands(),
+            Command::Set(c) => c.operands(),
+            Command::BranchEq(c) => c.operands(),
+            Command::BranchNeq(c) => c.operands(),
+            Command::Position(_) => Default::default(),
         }
     }
 
-    /// Returns the position name, if the command is a position command.
-    /// Otherwise, returns `None`.
-    #[inline]
-    fn position(&self) -> Option<&Identifier<N>> {
-        match self {
-            Command::Position(position) => Some(position.name()),
-            _ => None,
-        }
-    }
-
-    /// Returns `true` if the command is a call instruction.
-    #[inline]
-    fn is_call(&self) -> bool {
-        matches!(self, Command::Instruction(Instruction::Call(_)))
-    }
-
-    /// Returns `true` if the command is a cast to record instruction.
-    fn is_cast_to_record(&self) -> bool {
-        matches!(self, Command::Instruction(Instruction::Cast(cast)) if matches!(cast.cast_type(), CastType::Record(_) | CastType::ExternalRecord(_)))
-    }
-
-    /// Returns `true` if the command is a write operation.
-    #[inline]
-    fn is_write(&self) -> bool {
-        matches!(self, Command::Set(_) | Command::Remove(_))
-    }
-}
-
-impl<N: Network> Command<N> {
     /// Finalizes the command.
-    #[inline]
     pub fn finalize(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &impl StackTrait<N>,
         store: &impl FinalizeStoreTrait<N>,
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N> + FinalizeRegistersState<N>),
+        registers: &mut impl FinalizeRegistersState<N>,
     ) -> Result<Option<FinalizeOperation<N>>> {
         match self {
             // Finalize the instruction, and return no finalize operation.

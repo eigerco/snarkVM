@@ -30,6 +30,14 @@ impl<N: Network> FromBytes for Execution<N> {
         if num_transitions == 0 {
             return Err(error("Execution (from 'read_le') has no transitions"));
         }
+        // Ensure the number of transitions is within bounds.
+        if num_transitions as usize > Transaction::<N>::MAX_TRANSITIONS {
+            return Err(error(format!(
+                "Execution (from 'read_le') has too many transitions ({} > {})",
+                num_transitions,
+                Transaction::<N>::MAX_TRANSITIONS
+            )));
+        }
         // Read the transitions.
         let transitions =
             (0..num_transitions).map(|_| Transition::read_le(&mut reader)).collect::<IoResult<Vec<_>>>()?;
@@ -82,7 +90,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Construct a new execution.
-        let expected = crate::transaction::execution::test_helpers::sample_execution(rng);
+        let expected = crate::transaction::execution::test_helpers::sample_execution(rng, 0);
 
         // Check the byte representation.
         let expected_bytes = expected.to_bytes_le()?;

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, io};
 
 use crate::snark::varuna::{CircuitId, verifier::BatchCombiners};
 use snarkvm_fields::PrimeField;

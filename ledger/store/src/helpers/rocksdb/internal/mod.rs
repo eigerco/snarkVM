@@ -29,7 +29,6 @@ use aleo_std_storage::StorageMode;
 use anyhow::{Result, bail, ensure};
 #[cfg(feature = "locktick")]
 use locktick::parking_lot::Mutex;
-use once_cell::sync::Lazy;
 #[cfg(not(feature = "locktick"))]
 use parking_lot::Mutex;
 use serde::{Serialize, de::DeserializeOwned};
@@ -42,6 +41,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
+        LazyLock,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
@@ -54,8 +54,8 @@ pub const PREFIX_LEN: usize = 4; // N::ID (u16) + DataID (u16)
 // note: this object can't utilize locktick for lock accounting, but it is only ever accessed
 //       when first creating the database(s), so this is acceptable; this will also no longer
 //       be an issue once the above TODO is complete.
-static DATABASES: parking_lot::Mutex<Lazy<HashMap<PathBuf, RocksDB>>> =
-    parking_lot::Mutex::new(Lazy::new(HashMap::new));
+static DATABASES: LazyLock<parking_lot::Mutex<HashMap<PathBuf, RocksDB>>> =
+    LazyLock::new(|| parking_lot::Mutex::new(HashMap::new()));
 
 pub trait Database {
     /// Opens the database.

@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Cursor;
+
 use super::{Affine, Projective};
 use crate::{AffineCurve, ProjectiveCurve, ShortWeierstrassParameters};
 use snarkvm_fields::Zero;
@@ -20,7 +22,6 @@ use snarkvm_utilities::{
     Compress,
     TestRng,
     Validate,
-    io::Cursor,
     rand::Uniform,
     serialize::{CanonicalDeserialize, CanonicalSerialize},
 };

@@ -89,8 +89,9 @@ pub mod prelude {
         cfg_zip_fold,
         error,
         has_duplicates,
-        io::{Read, Result as IoResult, Write},
     };
+
+    pub use std::io::{Read, Result as IoResult, Write};
 
     pub use core::{
         cmp::Ordering,

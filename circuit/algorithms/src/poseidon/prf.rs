@@ -32,7 +32,7 @@ impl<E: Environment, const RATE: usize> PRF for Poseidon<E, RATE> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use snarkvm_circuit_types::environment::Circuit;

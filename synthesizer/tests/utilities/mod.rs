@@ -25,8 +25,8 @@
 
 #![allow(unused)]
 
-pub type CurrentAleo = circuit::network::AleoV0;
-pub type CurrentNetwork = console::network::MainnetV0;
+pub type CurrentAleo = snarkvm_circuit::network::AleoV0;
+pub type CurrentNetwork = snarkvm_console::network::MainnetV0;
 
 pub mod expectation;
 pub use expectation::*;

@@ -19,6 +19,10 @@ impl<E: Environment, I: IntegerType> SizeInBytes for Integer<E, I> {
     /// Returns the integer size in bytes.
     #[inline]
     fn size_in_bytes() -> usize {
-        ((I::BITS + 7) / 8) as usize
+        // We know that I::BITS fits in a usize
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            I::BITS.div_ceil(8) as usize
+        }
     }
 }

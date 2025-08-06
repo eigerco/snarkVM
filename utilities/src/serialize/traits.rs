@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use crate::SerializationError;
-pub use crate::io::{Read, Write};
+pub use std::io::{Read, Write};
 
 use serde::de::{self, DeserializeOwned, Deserializer};
 

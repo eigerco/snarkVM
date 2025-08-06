@@ -28,7 +28,7 @@ use snarkvm_fields::PrimeField;
 use snarkvm_utilities::{cfg_par_bridge, cfg_reduce};
 
 use itertools::Itertools;
-use rand_core::RngCore;
+use rand::RngCore;
 
 #[cfg(not(feature = "serial"))]
 use rayon::prelude::*;

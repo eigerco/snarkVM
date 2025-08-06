@@ -165,12 +165,14 @@ macro_rules! impl_check_cast {
                 match console_value.$fun() {
                     // If the console cast fails and the mode is constant, then the circuit cast should fail.
                     Err(_) if mode == Mode::Constant => {
-                        assert!(std::panic::catch_unwind(|| circuit_value.$fun()).is_err())
+                        assert!(
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| circuit_value.$fun())).is_err()
+                        )
                     }
                     // If the console cast fails, the circuit cast can either fail by panicking or fail by being unsatisfied.
                     Err(_) => {
                         Circuit::scope("test", || {
-                            if std::panic::catch_unwind(|| circuit_value.$fun()).is_ok() {
+                            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| circuit_value.$fun())).is_ok() {
                                 assert!(!Circuit::is_satisfied());
                                 count.assert_matches(
                                     Circuit::num_constants_in_scope(),

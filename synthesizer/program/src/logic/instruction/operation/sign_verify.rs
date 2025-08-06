@@ -13,11 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    Opcode,
-    Operand,
-    traits::{RegistersLoad, RegistersLoadCircuit, RegistersStore, RegistersStoreCircuit, StackMatches, StackProgram},
-};
+use crate::{Opcode, Operand, RegistersCircuit, RegistersTrait, StackTrait};
 use circuit::prelude::ToFields as CircuitToFields;
 use console::{
     network::prelude::*,
@@ -69,11 +65,7 @@ impl<N: Network> SignVerify<N> {
 impl<N: Network> SignVerify<N> {
     /// Evaluates the instruction.
     #[inline]
-    pub fn evaluate(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn evaluate(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() != 3 {
             bail!("Instruction '{}' expects 3 operands, found {} operands", Self::opcode(), self.operands.len())
@@ -101,8 +93,8 @@ impl<N: Network> SignVerify<N> {
     #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoadCircuit<N, A> + RegistersStoreCircuit<N, A>),
+        stack: &impl StackTrait<N>,
+        registers: &mut impl RegistersCircuit<N, A>,
     ) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() != 3 {
@@ -129,11 +121,7 @@ impl<N: Network> SignVerify<N> {
 
     /// Finalizes the instruction.
     #[inline]
-    pub fn finalize(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn finalize(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         self.evaluate(stack, registers)
     }
 
@@ -141,7 +129,7 @@ impl<N: Network> SignVerify<N> {
     #[inline]
     pub fn output_types(
         &self,
-        _stack: &impl StackProgram<N>,
+        _stack: &impl StackTrait<N>,
         input_types: &[RegisterType<N>],
     ) -> Result<Vec<RegisterType<N>>> {
         // Ensure the number of input types is correct.

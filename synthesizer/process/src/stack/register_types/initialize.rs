@@ -19,10 +19,7 @@ impl<N: Network> RegisterTypes<N> {
     /// Initializes a new instance of `RegisterTypes` for the given closure.
     /// Checks that the given closure is well-formed for the given stack.
     #[inline]
-    pub(super) fn initialize_closure_types(
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        closure: &Closure<N>,
-    ) -> Result<Self> {
+    pub(super) fn initialize_closure_types(stack: &Stack<N>, closure: &Closure<N>) -> Result<Self> {
         // Initialize a map of registers to their types.
         let mut register_types = Self { inputs: IndexMap::new(), destinations: IndexMap::new() };
 
@@ -60,10 +57,7 @@ impl<N: Network> RegisterTypes<N> {
     /// Initializes a new instance of `RegisterTypes` for the given function.
     /// Checks that the given function is well-formed for the given stack.
     #[inline]
-    pub(super) fn initialize_function_types(
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        function: &Function<N>,
-    ) -> Result<Self> {
+    pub(super) fn initialize_function_types(stack: &Stack<N>, function: &Function<N>) -> Result<Self> {
         // Initialize a map of registers to their types.
         let mut register_types = Self { inputs: IndexMap::new(), destinations: IndexMap::new() };
 
@@ -257,12 +251,7 @@ impl<N: Network> RegisterTypes<N> {
 impl<N: Network> RegisterTypes<N> {
     /// Ensure the given input register is well-formed.
     #[inline]
-    fn check_input(
-        &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        register: &Register<N>,
-        register_type: &RegisterType<N>,
-    ) -> Result<()> {
+    fn check_input(&mut self, stack: &Stack<N>, register: &Register<N>, register_type: &RegisterType<N>) -> Result<()> {
         // Ensure the register type is defined in the program.
         match register_type {
             RegisterType::Plaintext(PlaintextType::Literal(..)) => (),
@@ -279,7 +268,7 @@ impl<N: Network> RegisterTypes<N> {
                 let external_stack = stack.get_external_stack(locator.program_id())?;
                 // Ensure the external record type is defined in the program.
                 if !external_stack.program().contains_record(locator.resource()) {
-                    bail!("External record '{locator}' in '{}' is not defined.", stack.program_id())
+                    bail!("External record '{locator}' in '{}' is not defined.", external_stack.program_id())
                 }
             }
             RegisterType::Future(..) => bail!("Input '{register}' cannot be a future."),
@@ -297,12 +286,7 @@ impl<N: Network> RegisterTypes<N> {
 
     /// Ensure the given output register is well-formed.
     #[inline]
-    fn check_output(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        operand: &Operand<N>,
-        register_type: &RegisterType<N>,
-    ) -> Result<()> {
+    fn check_output(&self, stack: &Stack<N>, operand: &Operand<N>, register_type: &RegisterType<N>) -> Result<()> {
         #[cfg(feature = "aleo-cli")]
         match operand {
             // Inform the user the output operand is an input register, to ensure this is intended behavior.
@@ -333,7 +317,7 @@ impl<N: Network> RegisterTypes<N> {
                 let external_stack = stack.get_external_stack(locator.program_id())?;
                 // Ensure the external record type is defined in the program.
                 if !external_stack.program().contains_record(locator.resource()) {
-                    bail!("External record '{locator}' in '{}' is not defined.", stack.program_id())
+                    bail!("External record '{locator}' in '{}' is not defined.", external_stack.program_id())
                 }
             }
             RegisterType::Future(locator) => {
@@ -362,7 +346,7 @@ impl<N: Network> RegisterTypes<N> {
     #[inline]
     fn check_instruction(
         &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &Stack<N>,
         closure_or_function_name: &Identifier<N>,
         instruction: &Instruction<N>,
     ) -> Result<()> {
@@ -397,7 +381,7 @@ impl<N: Network> RegisterTypes<N> {
     #[inline]
     fn check_instruction_opcode(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &Stack<N>,
         closure_or_function_name: &Identifier<N>,
         instruction: &Instruction<N>,
     ) -> Result<()> {
@@ -613,7 +597,7 @@ impl<N: Network> RegisterTypes<N> {
     // /// Checks the cast operation is well-formed.
     // fn check_cast_operation<const VARIANT: u8>(
     //     &self,
-    //     stack: &(impl StackMatches<N> + StackProgram<N>),
+    //     stack: &impl StackTrait<N>,
     //     operation: &CastOperation<N, VARIANT>,
     // ) -> Result<()> {
     //     // Ensure the operation has one destination register.
@@ -657,10 +641,7 @@ impl<N: Network> RegisterTypes<N> {
     // }
 
     /// Ensures the struct exists in the program, and recursively-checks for array members.
-    pub(crate) fn check_struct(
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        struct_name: &Identifier<N>,
-    ) -> Result<()> {
+    pub(crate) fn check_struct(stack: &Stack<N>, struct_name: &Identifier<N>) -> Result<()> {
         // Retrieve the struct from the program.
         let Ok(struct_) = stack.program().get_struct(struct_name) else {
             bail!("Struct '{struct_name}' in '{}' is not defined.", stack.program_id())
@@ -678,10 +659,7 @@ impl<N: Network> RegisterTypes<N> {
     }
 
     /// Ensure the base element type of the array is defined in the program.
-    pub(crate) fn check_array(
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        array_type: &ArrayType<N>,
-    ) -> Result<()> {
+    pub(crate) fn check_array(stack: &Stack<N>, array_type: &ArrayType<N>) -> Result<()> {
         // If the base element type is a struct, check that it is defined in the program.
         if let PlaintextType::Struct(struct_name) = array_type.base_element_type() {
             // Ensure the struct is defined in the program.

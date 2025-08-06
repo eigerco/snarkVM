@@ -42,7 +42,7 @@ pub struct CircuitId(pub [u8; 32]);
 impl std::fmt::Display for CircuitId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for byte in self.0 {
-            write!(f, "{:02x}", byte)?;
+            write!(f, "{byte:02x}")?;
         }
         Ok(())
     }

@@ -21,7 +21,9 @@ impl<N: Network> Process<N> {
     #[inline]
     pub fn verify_fee(
         &self,
+        consensus_version: ConsensusVersion,
         varuna_version: VarunaVersion,
+        inclusion_version: InclusionVersion,
         fee: &Fee<N>,
         deployment_or_execution_id: Field<N>,
     ) -> Result<()> {
@@ -78,8 +80,8 @@ impl<N: Network> Process<N> {
 
         // Verify the fee transition is well-formed.
         match is_fee_private {
-            true => self.verify_fee_private(varuna_version, &fee)?,
-            false => self.verify_fee_public(varuna_version, &fee)?,
+            true => self.verify_fee_private(consensus_version, varuna_version, inclusion_version, &fee)?,
+            false => self.verify_fee_public(varuna_version, inclusion_version, &fee)?,
         }
         finish!(timer, "Verify the fee transition");
         Ok(())
@@ -88,7 +90,13 @@ impl<N: Network> Process<N> {
 
 impl<N: Network> Process<N> {
     /// Verifies the transition for `credits.aleo/fee_private` is well-formed.
-    fn verify_fee_private(&self, varuna_version: VarunaVersion, fee: &&Fee<N>) -> Result<()> {
+    fn verify_fee_private(
+        &self,
+        consensus_version: ConsensusVersion,
+        varuna_version: VarunaVersion,
+        inclusion_version: InclusionVersion,
+        fee: &&Fee<N>,
+    ) -> Result<()> {
         let timer = timer!("Process::verify_fee_private");
 
         // Retrieve the network ID.
@@ -117,13 +125,26 @@ impl<N: Network> Process<N> {
             fee.outputs().len()
         );
         // Ensure each output is valid.
-        if fee
-            .outputs()
-            .iter()
-            .enumerate()
-            .any(|(index, output)| !output.verify(function_id, fee.tcm(), num_inputs + index))
-        {
-            bail!("Failed to verify a fee output")
+        for (index, output) in fee.outputs().iter().enumerate() {
+            // If the consensus version are before `ConsensusVersion::V8`, ensure the output record is on Version 0.
+            // if the consensus version is on or after `ConsensusVersion::V8`, ensure the output record is on Version 1.
+            if let Some((_, record)) = output.record() {
+                if (ConsensusVersion::V1..=ConsensusVersion::V7).contains(&consensus_version) {
+                    #[cfg(not(any(test, feature = "test")))]
+                    ensure!(record.version().is_zero(), "Output record must be Version 0 before Consensus V8");
+                    #[cfg(any(test, feature = "test"))]
+                    ensure!(
+                        record.version().is_one(),
+                        "Output record must be Version 1 before Consensus V8  in tests."
+                    );
+                } else {
+                    ensure!(record.version().is_one(), "Output record must be Version 1 on or after Consensus V8");
+                }
+            }
+            // Ensure the output is valid.
+            if !output.verify(function_id, fee.tcm(), num_inputs + index) {
+                bail!("Failed to verify a fee output")
+            }
         }
         lap!(timer, "Verify the outputs");
 
@@ -154,14 +175,19 @@ impl<N: Network> Process<N> {
         let verifying_key = stack.get_verifying_key(fee.function_name())?;
 
         // Ensure the fee proof is valid.
-        Trace::verify_fee_proof(varuna_version, (verifying_key, vec![inputs]), fee)?;
+        Trace::verify_fee_proof(varuna_version, inclusion_version, (verifying_key, vec![inputs]), fee)?;
         finish!(timer, "Verify the fee proof");
         Ok(())
     }
 
     /// Verifies the transition for `credits.aleo/fee_public` is well-formed.
     /// Attention: This method does *not* verify the account balance is sufficient.
-    fn verify_fee_public(&self, varuna_version: VarunaVersion, fee: &&Fee<N>) -> Result<()> {
+    fn verify_fee_public(
+        &self,
+        varuna_version: VarunaVersion,
+        inclusion_version: InclusionVersion,
+        fee: &&Fee<N>,
+    ) -> Result<()> {
         let timer = timer!("Process::verify_fee_public");
 
         // Retrieve the network ID.
@@ -227,7 +253,7 @@ impl<N: Network> Process<N> {
         let verifying_key = stack.get_verifying_key(fee.function_name())?;
 
         // Ensure the fee proof is valid.
-        Trace::verify_fee_proof(varuna_version, (verifying_key, vec![inputs]), fee)?;
+        Trace::verify_fee_proof(varuna_version, inclusion_version, (verifying_key, vec![inputs]), fee)?;
         finish!(timer, "Verify the fee proof");
         Ok(())
     }
@@ -237,7 +263,7 @@ impl<N: Network> Process<N> {
 mod tests {
     use super::*;
     use console::prelude::TestRng;
-    use ledger_block::Transaction;
+    use snarkvm_ledger_block::Transaction;
 
     #[test]
     fn test_verify_fee() {
@@ -245,12 +271,14 @@ mod tests {
 
         // Fetch transactions.
         let transactions = [
-            ledger_test_helpers::sample_deployment_transaction(true, rng),
-            ledger_test_helpers::sample_deployment_transaction(false, rng),
-            ledger_test_helpers::sample_execution_transaction_with_fee(true, rng),
-            ledger_test_helpers::sample_execution_transaction_with_fee(false, rng),
-            ledger_test_helpers::sample_fee_private_transaction(rng),
-            ledger_test_helpers::sample_fee_public_transaction(rng),
+            snarkvm_ledger_test_helpers::sample_deployment_transaction(1, Uniform::rand(rng), true, rng),
+            snarkvm_ledger_test_helpers::sample_deployment_transaction(1, Uniform::rand(rng), false, rng),
+            snarkvm_ledger_test_helpers::sample_deployment_transaction(2, Uniform::rand(rng), true, rng),
+            snarkvm_ledger_test_helpers::sample_deployment_transaction(2, Uniform::rand(rng), false, rng),
+            snarkvm_ledger_test_helpers::sample_execution_transaction_with_fee(true, rng, 0),
+            snarkvm_ledger_test_helpers::sample_execution_transaction_with_fee(false, rng, 0),
+            snarkvm_ledger_test_helpers::sample_fee_private_transaction(rng),
+            snarkvm_ledger_test_helpers::sample_fee_public_transaction(rng),
         ];
 
         // Construct a new process.
@@ -262,17 +290,29 @@ mod tests {
                     // Compute the deployment ID.
                     let deployment_id = deployment.to_deployment_id().unwrap();
                     // Verify the fee.
-                    process.verify_fee(VarunaVersion::V1, &fee, deployment_id).unwrap();
+                    process
+                        .verify_fee(ConsensusVersion::V8, VarunaVersion::V1, InclusionVersion::V0, &fee, deployment_id)
+                        .unwrap();
                 }
                 Transaction::Execute(_, _, execution, fee) => {
                     // Compute the execution ID.
                     let execution_id = execution.to_execution_id().unwrap();
                     // Verify the fee.
-                    process.verify_fee(VarunaVersion::V1, &fee.unwrap(), execution_id).unwrap();
+                    process
+                        .verify_fee(
+                            ConsensusVersion::V8,
+                            VarunaVersion::V1,
+                            InclusionVersion::V0,
+                            &fee.unwrap(),
+                            execution_id,
+                        )
+                        .unwrap();
                 }
                 Transaction::Fee(_, fee) => match fee.is_fee_private() {
-                    true => process.verify_fee_private(VarunaVersion::V1, &&fee).unwrap(),
-                    false => process.verify_fee_public(VarunaVersion::V1, &&fee).unwrap(),
+                    true => process
+                        .verify_fee_private(ConsensusVersion::V8, VarunaVersion::V1, InclusionVersion::V0, &&fee)
+                        .unwrap(),
+                    false => process.verify_fee_public(VarunaVersion::V1, InclusionVersion::V0, &&fee).unwrap(),
                 },
             }
         }

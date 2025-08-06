@@ -15,13 +15,12 @@
 
 use super::*;
 
-impl<N: Network> StackEvaluate<N> for Stack<N> {
+impl<N: Network> Stack<N> {
     /// Evaluates a program closure on the given inputs.
     ///
     /// # Errors
     /// This method will halt if the given inputs are not the same length as the input statements.
-    #[inline]
-    fn evaluate_closure<A: circuit::Aleo<Network = N>>(
+    pub fn evaluate_closure<A: circuit::Aleo<Network = N>>(
         &self,
         closure: &Closure<N>,
         inputs: &[Value<N>],
@@ -38,7 +37,8 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
         }
 
         // Initialize the registers.
-        let mut registers = Registers::<N, A>::new(call_stack, self.get_register_types(closure.name())?.clone());
+        let mut registers =
+            Registers::<N, A>::new(call_stack.clone(), self.get_register_types(closure.name())?.clone());
         // Set the transition signer.
         registers.set_signer(signer);
         // Set the transition caller.
@@ -85,6 +85,12 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
                     Operand::BlockHeight => bail!("Cannot retrieve the block height from a closure scope."),
                     // If the operand is the network id, throw an error.
                     Operand::NetworkID => bail!("Cannot retrieve the network ID from a closure scope."),
+                    // If the operand is the program checksum, throw an error.
+                    Operand::Checksum(_) => bail!("Cannot retrieve the program checksum from a closure scope."),
+                    // If the operand is the program edition, throw an error.
+                    Operand::Edition(_) => bail!("Cannot retrieve the edition from a closure scope."),
+                    // If the operand is the program owner, throw an error.
+                    Operand::ProgramOwner(_) => bail!("Cannot retrieve the program owner from a closure scope."),
                 }
             })
             .collect();
@@ -98,16 +104,18 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
     ///
     /// # Errors
     /// This method will halt if the given inputs are not the same length as the input statements.
-    #[inline]
-    fn evaluate_function<A: circuit::Aleo<Network = N>>(
+    pub fn evaluate_function<A: circuit::Aleo<Network = N>, R: CryptoRng + Rng>(
         &self,
-        call_stack: CallStack<N>,
+        mut call_stack: CallStack<N>,
         caller: Option<ProgramID<N>>,
+        root_tvk: Option<Field<N>>,
+        rng: &mut R,
     ) -> Result<Response<N>> {
         let timer = timer!("Stack::evaluate_function");
 
         // Retrieve the next request, based on the call stack mode.
-        let (request, call_stack) = match &call_stack {
+        let (request, call_stack) = match &mut call_stack {
+            CallStack::Authorize(..) => (call_stack.pop()?, call_stack),
             CallStack::Evaluate(authorization) => (authorization.next()?, call_stack),
             // If the evaluation is performed in the `Execute` mode, create a new `Evaluate` mode.
             // This is done to ensure that evaluation during execution is performed consistently.
@@ -119,7 +127,9 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
                 let call_stack = CallStack::Evaluate(authorization);
                 (request, call_stack)
             }
-            _ => bail!("Illegal operation: call stack must be `Evaluate` or `Execute` in `evaluate_function`."),
+            _ => bail!(
+                "Illegal operation: call stack must be `Authorize`, `Evaluate` or `Execute` in `evaluate_function`."
+            ),
         };
         lap!(timer, "Retrieve the next request");
 
@@ -142,6 +152,11 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
             None => (true, signer),
         };
         let tvk = *request.tvk();
+        // Retrieve the program checksum, if the program has a constructor.
+        let program_checksum = match self.program().contains_constructor() {
+            true => Some(self.program_checksum_as_field()?),
+            false => None,
+        };
 
         // Ensure the number of inputs matches.
         if function.inputs().len() != inputs.len() {
@@ -163,10 +178,16 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
         registers.set_caller(caller);
         // Set the transition view key.
         registers.set_tvk(tvk);
+        // Set the root tvk.
+        if let Some(root_tvk) = root_tvk {
+            registers.set_root_tvk(root_tvk);
+        } else {
+            registers.set_root_tvk(tvk);
+        }
         lap!(timer, "Initialize the registers");
 
         // Ensure the request is well-formed.
-        ensure!(request.verify(&function.input_types(), is_root), "Request is invalid");
+        ensure!(request.verify(&function.input_types(), is_root, program_checksum), "[Evaluate] Request is invalid");
         lap!(timer, "Verify the request");
 
         // Store the inputs.
@@ -182,7 +203,7 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
             // Evaluate the instruction.
             let result = match instruction {
                 // If the instruction is a `call` instruction, we need to handle it separately.
-                Instruction::Call(call) => CallTrait::evaluate(call, self, &mut registers),
+                Instruction::Call(call) => CallTrait::evaluate(call, self, &mut registers, rng),
                 // Otherwise, evaluate the instruction normally.
                 _ => instruction.evaluate(self, &mut registers),
             };
@@ -218,6 +239,12 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
                     Operand::BlockHeight => bail!("Cannot retrieve the block height from a function scope."),
                     // If the operand is the network id, throw an error.
                     Operand::NetworkID => bail!("Cannot retrieve the network ID from a function scope."),
+                    // If the operand is the program checksum, throw an error.
+                    Operand::Checksum(_) => bail!("Cannot retrieve the program checksum from a function scope."),
+                    // If the operand is the program edition, throw an error.
+                    Operand::Edition(_) => bail!("Cannot retrieve the edition from a function scope."),
+                    // If the operand is the program owner, throw an error.
+                    Operand::ProgramOwner(_) => bail!("Cannot retrieve the program owner from a function scope."),
                 }
             })
             .collect::<Result<Vec<_>>>()?;
@@ -235,6 +262,7 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
 
         // Compute the response.
         let response = Response::new(
+            request.signer(),
             request.network_id(),
             self.program.id(),
             function.name(),
@@ -244,9 +272,18 @@ impl<N: Network> StackEvaluate<N> for Stack<N> {
             outputs,
             &function.output_types(),
             &output_registers,
-        );
+        )?;
         finish!(timer);
 
-        response
+        // If the circuit is in `Authorize` mode, then save the transition.
+        if let CallStack::Authorize(_, _, authorization) = registers.call_stack_ref() {
+            // Construct the transition.
+            let transition = Transition::from(&request, &response, &function.output_types(), &output_registers)?;
+            // Add the transition to the authorization.
+            authorization.insert_transition(transition)?;
+            lap!(timer, "Save the transition");
+        }
+
+        Ok(response)
     }
 }

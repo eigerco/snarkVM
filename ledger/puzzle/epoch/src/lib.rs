@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate snarkvm_circuit as circuit;
+extern crate snarkvm_console as console;
+
 #[cfg(feature = "merkle")]
 pub mod merkle;
 #[cfg(feature = "merkle")]

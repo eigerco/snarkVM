@@ -15,7 +15,6 @@
 
 use super::*;
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Equal<Self> for Signature<A> {
     type Output = Boolean<A>;
 
@@ -67,7 +66,7 @@ impl<A: Aleo> OutputMode<dyn Equal<Signature<A>, Output = Boolean<A>>> for Signa
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Circuit;

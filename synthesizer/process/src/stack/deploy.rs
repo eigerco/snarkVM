@@ -51,13 +51,14 @@ impl<N: Network> Stack<N> {
         finish!(timer);
 
         // Return the deployment.
-        Deployment::new(N::EDITION, self.program.clone(), verifying_keys)
+        Deployment::new(*self.program_edition, self.program.clone(), verifying_keys, None, None)
     }
 
     /// Checks each function in the program on the given verifying key and certificate.
     #[inline]
     pub fn verify_deployment<A: circuit::Aleo<Network = N>, R: Rng + CryptoRng>(
         &self,
+        _consensus_version: ConsensusVersion,
         deployment: &Deployment<N>,
         rng: &mut R,
     ) -> Result<()> {
@@ -69,9 +70,17 @@ impl<N: Network> Stack<N> {
         deployment.check_is_ordered()?;
         // Ensure the program in the stack and deployment matches.
         ensure!(&self.program == deployment.program(), "The stack program does not match the deployment program");
+        // If the deployment contains a checksum, ensure it matches the one computed by the stack.
+        if let Some(program_checksum) = deployment.program_checksum() {
+            ensure!(
+                program_checksum == self.program_checksum,
+                "The deployment checksum does not match the stack checksum"
+            );
+        }
 
         // Check Verifying Keys //
 
+        // Get the program ID.
         let program_id = self.program.id();
 
         // Check that the number of combined variables does not exceed the deployment limit.
@@ -82,10 +91,9 @@ impl<N: Network> Stack<N> {
         // Construct the call stacks and assignments used to verify the certificates.
         let mut call_stacks = Vec::with_capacity(deployment.verifying_keys().len());
 
-        // The `root_tvk` is `None` when verifying the deployment of an individual circuit.
+        // Sample a dummy `root_tvk` for circuit synthesis.
         let root_tvk = None;
-
-        // The `caller` is `None` when verifying the deployment of an individual circuit.
+        // Sample a dummy `caller` for circuit synthesis.
         let caller = None;
 
         // Check that the number of functions matches the number of verifying keys.
@@ -93,6 +101,13 @@ impl<N: Network> Stack<N> {
             deployment.program().functions().len() == deployment.verifying_keys().len(),
             "The number of functions in the program does not match the number of verifying keys"
         );
+
+        #[cfg(not(any(test, feature = "test")))]
+        // Skip the certificate verification if the consensus version is before ConsensusVersion::V8.
+        if (ConsensusVersion::V1..=ConsensusVersion::V7).contains(&_consensus_version) {
+            finish!(timer);
+            return Ok(());
+        }
 
         // Create a seeded rng to use for input value and sub-stack generation.
         // This is needed to ensure that the verification results of deployments are consistent across all parties,
@@ -110,6 +125,11 @@ impl<N: Network> Stack<N> {
             let burner_address = Address::try_from(&burner_private_key)?;
             // Retrieve the input types.
             let input_types = function.input_types();
+            // Retrieve the program checksum, if the program has a constructor.
+            let program_checksum = match self.program().contains_constructor() {
+                true => Some(self.program_checksum_as_field()?),
+                false => None,
+            };
             // Sample the inputs.
             let inputs = input_types
                 .iter()
@@ -124,7 +144,7 @@ impl<N: Network> Stack<N> {
                 })
                 .collect::<Result<Vec<_>>>()?;
             lap!(timer, "Sample the inputs");
-            // Sample 'is_root'.
+            // Sample a dummy 'is_root'.
             let is_root = true;
 
             // Compute the request, with a burner private key.
@@ -136,6 +156,7 @@ impl<N: Network> Stack<N> {
                 &input_types,
                 root_tvk,
                 is_root,
+                program_checksum,
                 rng,
             )?;
             lap!(timer, "Compute the request for {}", function.name());
@@ -161,7 +182,7 @@ impl<N: Network> Stack<N> {
         }
 
         // Verify the certificates.
-        let rngs = (0..call_stacks.len()).map(|_| StdRng::from_seed(seeded_rng.gen())).collect::<Vec<_>>();
+        let rngs = (0..call_stacks.len()).map(|_| StdRng::from_seed(seeded_rng.r#gen())).collect::<Vec<_>>();
         cfg_into_iter!(call_stacks).zip_eq(deployment.verifying_keys()).zip_eq(rngs).try_for_each(
             |(((function_name, call_stack, assignments), (_, (verifying_key, certificate))), mut rng)| {
                 // Synthesize the circuit.

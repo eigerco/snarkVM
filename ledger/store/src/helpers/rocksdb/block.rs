@@ -27,10 +27,10 @@ use crate::{
     },
 };
 use console::{prelude::*, types::Field};
-use ledger_authority::Authority;
-use ledger_block::{Header, Ratifications, Rejected, Solutions};
-use ledger_puzzle::SolutionID;
-use synthesizer_program::FinalizeOperation;
+use snarkvm_ledger_authority::Authority;
+use snarkvm_ledger_block::{Header, Ratifications, Rejected, Solutions};
+use snarkvm_ledger_puzzle::SolutionID;
+use snarkvm_synthesizer_program::FinalizeOperation;
 
 use aleo_std_storage::StorageMode;
 
@@ -217,5 +217,11 @@ impl<N: Network> BlockStorage<N> for BlockDB<N> {
     /// Returns the transaction store.
     fn transaction_store(&self) -> &TransactionStore<N, Self::TransactionStorage> {
         &self.transaction_store
+    }
+
+    #[cfg(feature = "rocks")]
+    fn backup_database<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        // Any map can be used to retrieve the common RocksDB instance.
+        self.id_map().backup_database(path)
     }
 }

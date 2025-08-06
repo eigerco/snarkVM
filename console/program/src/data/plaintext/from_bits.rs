@@ -65,7 +65,7 @@ impl<N: Network> Plaintext<N> {
             let literal = Literal::from_bits_le(literal_variant, next_bits(literal_size as usize)?)?;
 
             // Cache the plaintext bits, and return the literal.
-            Ok(Self::Literal(literal, OnceCell::with_value(bits_le.to_vec())))
+            Ok(Self::Literal(literal, bits_le.to_vec().into()))
         }
         // Struct
         else if variant == [false, true] {
@@ -88,7 +88,7 @@ impl<N: Network> Plaintext<N> {
             }
 
             // Cache the plaintext bits, and return the struct.
-            Ok(Self::Struct(members, OnceCell::with_value(bits_le.to_vec())))
+            Ok(Self::Struct(members, bits_le.to_vec().into()))
         }
         // Array
         else if variant == [true, false] {
@@ -106,7 +106,7 @@ impl<N: Network> Plaintext<N> {
             }
 
             // Cache the plaintext bits, and return the array.
-            Ok(Self::Array(elements, OnceCell::with_value(bits_le.to_vec())))
+            Ok(Self::Array(elements, bits_le.to_vec().into()))
         }
         // Unknown variant.
         else {
@@ -151,7 +151,7 @@ impl<N: Network> Plaintext<N> {
             let literal = Literal::from_bits_be(literal_variant, next_bits(literal_size as usize)?)?;
 
             // Cache the plaintext bits, and return the literal.
-            Ok(Self::Literal(literal, OnceCell::with_value(bits_be.to_vec())))
+            Ok(Self::Literal(literal, bits_be.to_vec().into()))
         }
         // Struct
         else if variant == [false, true] {
@@ -171,7 +171,7 @@ impl<N: Network> Plaintext<N> {
             }
 
             // Cache the plaintext bits, and return the struct.
-            Ok(Self::Struct(members, OnceCell::with_value(bits_be.to_vec())))
+            Ok(Self::Struct(members, bits_be.to_vec().into()))
         }
         // Array
         else if variant == [true, false] {
@@ -189,7 +189,7 @@ impl<N: Network> Plaintext<N> {
             }
 
             // Cache the plaintext bits, and return the array.
-            Ok(Self::Array(elements, OnceCell::with_value(bits_be.to_vec())))
+            Ok(Self::Array(elements, bits_be.to_vec().into()))
         }
         // Unknown variant.
         else {

@@ -39,8 +39,8 @@ use rand::Rng;
 fn test_edwards_bls12_fr() {
     let mut rng = TestRng::default();
 
-    let a: Fr = rng.gen();
-    let b: Fr = rng.gen();
+    let a: Fr = rng.r#gen();
+    let b: Fr = rng.r#gen();
     field_test(a, b, &mut rng);
     primefield_test::<Fr>(&mut rng);
     field_serialization_test::<Fr>(&mut rng);
@@ -50,8 +50,8 @@ fn test_edwards_bls12_fr() {
 fn test_edwards_bls12_fq() {
     let mut rng = TestRng::default();
 
-    let a: Fq = rng.gen();
-    let b: Fq = rng.gen();
+    let a: Fq = rng.r#gen();
+    let b: Fq = rng.r#gen();
     field_test(a, b, &mut rng);
     primefield_test::<Fq>(&mut rng);
     field_serialization_test::<Fq>(&mut rng);
@@ -70,8 +70,8 @@ fn test_projective_group() {
     let mut rng = TestRng::default();
 
     for _i in 0..10 {
-        let a = rng.gen();
-        let b = rng.gen();
+        let a = rng.r#gen();
+        let b = rng.r#gen();
         projective_test::<EdwardsProjective>(a, b, &mut rng);
     }
 }
@@ -81,7 +81,7 @@ fn test_affine_group() {
     let mut rng = TestRng::default();
 
     for _i in 0..10 {
-        let a: EdwardsAffine = rng.gen();
+        let a: EdwardsAffine = rng.r#gen();
         affine_test::<EdwardsAffine>(a);
     }
 }
@@ -97,8 +97,8 @@ fn test_generator() {
 fn test_conversion() {
     let mut rng = TestRng::default();
 
-    let a: EdwardsAffine = rng.gen();
-    let b: EdwardsAffine = rng.gen();
+    let a: EdwardsAffine = rng.r#gen();
+    let b: EdwardsAffine = rng.r#gen();
     assert_eq!(a.to_projective().to_affine(), a);
     assert_eq!(b.to_projective().to_affine(), b);
 }
@@ -113,7 +113,7 @@ fn test_montgomery_conversion() {
 fn test_edwards_to_montgomery_point() {
     let mut rng = TestRng::default();
 
-    let a: EdwardsAffine = rng.gen();
+    let a: EdwardsAffine = rng.r#gen();
     let (x, y) = (a.x, a.y);
 
     // Montgomery element (u, v)

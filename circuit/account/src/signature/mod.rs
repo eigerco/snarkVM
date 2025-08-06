@@ -35,7 +35,6 @@ pub struct Signature<A: Aleo> {
     compute_key: ComputeKey<A>,
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Inject for Signature<A> {
     type Primitive = console::Signature<A::Network>;
 
@@ -66,7 +65,6 @@ impl<A: Aleo> Signature<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Eject for Signature<A> {
     type Primitive = console::Signature<A::Network>;
 
@@ -81,7 +79,6 @@ impl<A: Aleo> Eject for Signature<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Parser for Signature<A> {
     /// Parses a string into a signature circuit.
     #[inline]
@@ -98,7 +95,6 @@ impl<A: Aleo> Parser for Signature<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> FromStr for Signature<A> {
     type Err = Error;
 
@@ -117,7 +113,6 @@ impl<A: Aleo> FromStr for Signature<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> TypeName for Signature<A> {
     /// Returns the type name of the circuit as a string.
     #[inline]
@@ -126,21 +121,19 @@ impl<A: Aleo> TypeName for Signature<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Debug for Signature<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Display for Signature<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.eject_value(), self.eject_mode())
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{Circuit, helpers::generate_account};

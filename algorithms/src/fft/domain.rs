@@ -398,7 +398,7 @@ impl<F: FftField> EvaluationDomain<F> {
     pub fn in_order_fft_with_pc<T: DomainCoeff<F>>(&self, x_s: &[T], pc: &FFTPrecomputation<F>) -> Vec<T> {
         let mut x_s = x_s.to_vec();
         if self.size() != x_s.len() {
-            x_s.extend(core::iter::repeat(T::zero()).take(self.size() - x_s.len()));
+            x_s.extend(core::iter::repeat_n(T::zero(), self.size() - x_s.len()));
         }
         self.fft_helper_in_place_with_pc(&mut x_s, FFTOrder::II, pc);
         x_s
@@ -634,7 +634,7 @@ impl<F: FftField> EvaluationDomain<F> {
 
         // recursive case:
         // 1. split log_powers in half
-        let (lr_lo, lr_hi) = log_powers.split_at((1 + log_powers.len()) / 2);
+        let (lr_lo, lr_hi) = log_powers.split_at(log_powers.len().div_ceil(2));
         let mut scr_lo = vec![F::default(); 1 << lr_lo.len()];
         let mut scr_hi = vec![F::default(); 1 << lr_hi.len()];
         // 2. compute each half individually
@@ -954,7 +954,7 @@ mod tests {
             let domain = EvaluationDomain::<Fr>::new(coeffs).unwrap();
             let z = domain.vanishing_polynomial();
             for _ in 0..100 {
-                let point = rng.gen();
+                let point = rng.r#gen();
                 assert_eq!(z.evaluate(point), domain.evaluate_vanishing_polynomial(point))
             }
         }

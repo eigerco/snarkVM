@@ -22,13 +22,13 @@ mod string;
 use crate::Transaction;
 use console::{
     network::prelude::*,
-    program::{Identifier, ProgramID},
-    types::Field,
+    program::{Address, Identifier, ProgramID},
+    types::{Field, U8},
 };
-use synthesizer_program::Program;
-use synthesizer_snark::{Certificate, VerifyingKey};
+use snarkvm_synthesizer_program::Program;
+use snarkvm_synthesizer_snark::{Certificate, VerifyingKey};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Deployment<N: Network> {
     /// The edition.
     edition: u16,
@@ -36,7 +36,25 @@ pub struct Deployment<N: Network> {
     program: Program<N>,
     /// The mapping of function names to their verifying key and certificate.
     verifying_keys: Vec<(Identifier<N>, (VerifyingKey<N>, Certificate<N>))>,
+    /// An optional checksum for the program.
+    /// This field creates a backwards-compatible implicit versioning mechanism for deployments.
+    /// Before the migration height where this feature is enabled, the checksum will **not** be allowed.
+    /// After the migration height where this feature is enabled, the checksum will be required.
+    program_checksum: Option<[U8<N>; 32]>,
+    /// An optional owner for the program.
+    /// This field creates a backwards-compatible implicit versioning mechanism for deployments.
+    /// Before the migration height where this feature is enabled, the owner will **not** be allowed.
+    /// After the migration height where this feature is enabled, the owner will be required.
+    program_owner: Option<Address<N>>,
 }
+
+impl<N: Network> PartialEq for Deployment<N> {
+    fn eq(&self, other: &Self) -> bool {
+        self.edition == other.edition && self.verifying_keys == other.verifying_keys && self.program == other.program
+    }
+}
+
+impl<N: Network> Eq for Deployment<N> {}
 
 impl<N: Network> Deployment<N> {
     /// Initializes a new deployment.
@@ -44,9 +62,11 @@ impl<N: Network> Deployment<N> {
         edition: u16,
         program: Program<N>,
         verifying_keys: Vec<(Identifier<N>, (VerifyingKey<N>, Certificate<N>))>,
+        program_checksum: Option<[U8<N>; 32]>,
+        program_owner: Option<Address<N>>,
     ) -> Result<Self> {
         // Construct the deployment.
-        let deployment = Self { edition, program, verifying_keys };
+        let deployment = Self { edition, program, verifying_keys, program_checksum, program_owner };
         // Ensure the deployment is ordered.
         deployment.check_is_ordered()?;
         // Return the deployment.
@@ -57,13 +77,16 @@ impl<N: Network> Deployment<N> {
     pub fn check_is_ordered(&self) -> Result<()> {
         let program_id = self.program.id();
 
-        // Ensure the edition matches.
-        ensure!(
-            self.edition == N::EDITION,
-            "Deployed the wrong edition (expected '{}', found '{}').",
-            N::EDITION,
-            self.edition
-        );
+        // Ensure that either the both the program checksum and owner are present, or both are absent.
+        // The call to `Deployment::version` implicitly performs this check.
+        self.version()?;
+        // Validate the deployment based on the program checksum.
+        if let Some(program_checksum) = self.program_checksum {
+            ensure!(
+                program_checksum == self.program.to_checksum(),
+                "The program checksum in the deployment does not match the computed checksum for '{program_id}'"
+            );
+        }
         // Ensure the program contains functions.
         ensure!(
             !self.program.functions().is_empty(),
@@ -113,13 +136,8 @@ impl<N: Network> Deployment<N> {
     }
 
     /// Returns the number of program functions in the deployment.
-    pub fn len(&self) -> usize {
+    pub fn num_functions(&self) -> usize {
         self.program.functions().len()
-    }
-
-    /// Returns `true` if the deployment is empty.
-    pub fn is_empty(&self) -> bool {
-        self.program.functions().is_empty()
     }
 
     /// Returns the edition.
@@ -130,6 +148,16 @@ impl<N: Network> Deployment<N> {
     /// Returns the program.
     pub const fn program(&self) -> &Program<N> {
         &self.program
+    }
+
+    /// Returns the program checksum, if it was stored.
+    pub const fn program_checksum(&self) -> Option<[U8<N>; 32]> {
+        self.program_checksum
+    }
+
+    /// Returns the program owner, if it was stored.
+    pub const fn program_owner(&self) -> Option<Address<N>> {
+        self.program_owner
     }
 
     /// Returns the program.
@@ -182,25 +210,64 @@ impl<N: Network> Deployment<N> {
     }
 }
 
+impl<N: Network> Deployment<N> {
+    /// Sets the program checksum.
+    /// Note: This method is intended to be used by the synthesizer **only**, and should not be called by the user.
+    #[doc(hidden)]
+    pub fn set_program_checksum_raw(&mut self, program_checksum: Option<[U8<N>; 32]>) {
+        self.program_checksum = program_checksum;
+    }
+
+    /// Sets the program owner.
+    /// Note: This method is intended to be used by the synthesizer **only**, and should not be called by the user.
+    #[doc(hidden)]
+    pub fn set_program_owner_raw(&mut self, program_owner: Option<Address<N>>) {
+        self.program_owner = program_owner;
+    }
+
+    /// An internal function to return the implicit deployment version.
+    /// This function implicitly checks that the deployment checksum and owner is well-formed.
+    #[doc(hidden)]
+    pub(super) fn version(&self) -> Result<DeploymentVersion> {
+        match (self.program_checksum.is_some(), self.program_owner.is_some()) {
+            (false, false) => Ok(DeploymentVersion::V1),
+            (true, true) => Ok(DeploymentVersion::V2),
+            (true, false) => {
+                bail!("The program checksum is present, but the program owner is absent.")
+            }
+            (false, true) => {
+                bail!("The program owner is present, but the program checksum is absent.")
+            }
+        }
+    }
+}
+
+// An internal enum to represent the deployment version.
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub(super) enum DeploymentVersion {
+    V1 = 1,
+    V2 = 2,
+}
+
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
     use console::network::MainnetV0;
-    use synthesizer_process::Process;
+    use snarkvm_synthesizer_process::Process;
 
-    use once_cell::sync::OnceCell;
+    use std::sync::OnceLock;
 
     type CurrentNetwork = MainnetV0;
-    type CurrentAleo = circuit::network::AleoV0;
+    type CurrentAleo = snarkvm_circuit::network::AleoV0;
 
-    pub(crate) fn sample_deployment(rng: &mut TestRng) -> Deployment<CurrentNetwork> {
-        static INSTANCE: OnceCell<Deployment<CurrentNetwork>> = OnceCell::new();
-        INSTANCE
+    pub(crate) fn sample_deployment_v1(edition: u16, rng: &mut TestRng) -> Deployment<CurrentNetwork> {
+        static INSTANCE: OnceLock<Deployment<CurrentNetwork>> = OnceLock::new();
+        let deployment = INSTANCE
             .get_or_init(|| {
                 // Initialize a new program.
                 let (string, program) = Program::<CurrentNetwork>::parse(
                     r"
-program testing.aleo;
+program testing_three.aleo;
 
 mapping store:
     key as u32.public;
@@ -213,15 +280,72 @@ function compute:
                 )
                 .unwrap();
                 assert!(string.is_empty(), "Parser did not consume all of the string: '{string}'");
-
                 // Construct the process.
                 let process = Process::load().unwrap();
                 // Compute the deployment.
-                let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
+                let mut deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
+                // Unset the checksum.
+                deployment.set_program_checksum_raw(None);
+                // Unset the owner.
+                deployment.set_program_owner_raw(None);
                 // Return the deployment.
                 // Note: This is a testing-only hack to adhere to Rust's dependency cycle rules.
                 Deployment::from_str(&deployment.to_string()).unwrap()
             })
-            .clone()
+            .clone();
+        // Create a new deployment with the desired edition.
+        // Note the only valid editions for V1 deployments are 0 and 1.
+        Deployment::<CurrentNetwork>::new(
+            edition % 2,
+            deployment.program().clone(),
+            deployment.verifying_keys().clone(),
+            deployment.program_checksum(),
+            deployment.program_owner(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn sample_deployment_v2(edition: u16, rng: &mut TestRng) -> Deployment<CurrentNetwork> {
+        static INSTANCE: OnceLock<Deployment<CurrentNetwork>> = OnceLock::new();
+        let deployment = INSTANCE
+            .get_or_init(|| {
+                // Initialize a new program.
+                let (string, program) = Program::<CurrentNetwork>::parse(
+                    r"
+program testing_four.aleo;
+
+mapping store:
+    key as u32.public;
+    value as u32.public;
+
+function compute:
+    input r0 as u32.private;
+    add r0 r0 into r1;
+    output r1 as u32.public;",
+                )
+                .unwrap();
+                assert!(string.is_empty(), "Parser did not consume all of the string: '{string}'");
+                // Construct the process.
+                let process = Process::load().unwrap();
+                // Compute the deployment.
+                let mut deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
+                // Set the program checksum.
+                deployment.set_program_checksum_raw(Some(deployment.program().to_checksum()));
+                // Set the program owner.
+                deployment.set_program_owner_raw(Some(Address::rand(rng)));
+                // Return the deployment.
+                // Note: This is a testing-only hack to adhere to Rust's dependency cycle rules.
+                Deployment::from_str(&deployment.to_string()).unwrap()
+            })
+            .clone();
+        // Create a new deployment with the desired edition.
+        Deployment::<CurrentNetwork>::new(
+            edition,
+            deployment.program().clone(),
+            deployment.verifying_keys().clone(),
+            deployment.program_checksum(),
+            deployment.program_owner(),
+        )
+        .unwrap()
     }
 }

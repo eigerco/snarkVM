@@ -15,8 +15,6 @@
 
 use crate::{
     atomic_batch_scope,
-    cow_to_cloned,
-    cow_to_copied,
     helpers::{Map, MapRead, NestedMap, NestedMapRead},
     program::{CommitteeStorage, CommitteeStore},
 };
@@ -25,7 +23,7 @@ use console::{
     program::{Identifier, Plaintext, ProgramID, Value},
     types::Field,
 };
-use synthesizer_program::{FinalizeOperation, FinalizeStoreTrait};
+use snarkvm_synthesizer_program::{FinalizeOperation, FinalizeStoreTrait};
 
 use aleo_std_storage::StorageMode;
 use anyhow::Result;
@@ -148,13 +146,9 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
         program_id: ProgramID<N>,
         mapping_name: Identifier<N>,
     ) -> Result<FinalizeOperation<N>> {
-        // Retrieve the mapping names for the program ID.
-        let mut mapping_names = match self.program_id_map().get_speculative(&program_id)? {
-            // If the program ID already exists, retrieve the mapping names.
-            Some(mapping_names) => cow_to_cloned!(mapping_names),
-            // If the program ID does not exist, initialize the mapping names.
-            None => IndexSet::new(),
-        };
+        // Retrieve the mapping names for the program ID. If the program ID does not exist, initialize the mapping names.
+        let mut mapping_names =
+            self.program_id_map().get_speculative(&program_id)?.map_or(Default::default(), |x| x.into_owned());
 
         // Ensure the mapping name does not already exist.
         if mapping_names.contains(&mapping_name) {
@@ -309,9 +303,9 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
     /// along with all associated key-value pairs in storage.
     fn remove_mapping(&self, program_id: ProgramID<N>, mapping_name: Identifier<N>) -> Result<FinalizeOperation<N>> {
         // Retrieve the mapping names.
-        let mut mapping_names = match self.program_id_map().get_speculative(&program_id)? {
-            Some(mapping_names) => cow_to_cloned!(mapping_names),
-            None => bail!("Illegal operation: program ID '{program_id}' is not initialized - cannot remove mapping."),
+        let Some(mut mapping_names) = self.program_id_map().get_speculative(&program_id)?.map(|x| x.into_owned())
+        else {
+            bail!("Illegal operation: program ID '{program_id}' is not initialized - cannot remove mapping.");
         };
         // Remove the mapping name.
         if !mapping_names.shift_remove(&mapping_name) {
@@ -359,12 +353,12 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns `true` if the given `program ID` and `mapping name` exist.
     fn contains_mapping_confirmed(&self, program_id: &ProgramID<N>, mapping_name: &Identifier<N>) -> Result<bool> {
-        Ok(self.program_id_map().get_confirmed(program_id)?.map_or(false, |m| m.contains(mapping_name)))
+        Ok(self.program_id_map().get_confirmed(program_id)?.is_some_and(|m| m.contains(mapping_name)))
     }
 
     /// Returns `true` if the given `program ID` and `mapping name` exist.
     fn contains_mapping_speculative(&self, program_id: &ProgramID<N>, mapping_name: &Identifier<N>) -> Result<bool> {
-        Ok(self.program_id_map().get_speculative(program_id)?.map_or(false, |m| m.contains(mapping_name)))
+        Ok(self.program_id_map().get_speculative(program_id)?.is_some_and(|m| m.contains(mapping_name)))
     }
 
     /// Returns `true` if the given `program ID`, `mapping name`, and `key` exist.
@@ -389,12 +383,12 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the confirmed mapping names for the given `program ID`.
     fn get_mapping_names_confirmed(&self, program_id: &ProgramID<N>) -> Result<Option<IndexSet<Identifier<N>>>> {
-        Ok(self.program_id_map().get_confirmed(program_id)?.map(|names| cow_to_cloned!(names)))
+        Ok(self.program_id_map().get_confirmed(program_id)?.map(|names| names.into_owned()))
     }
 
     /// Returns the speculative mapping names for the given `program ID`.
     fn get_mapping_names_speculative(&self, program_id: &ProgramID<N>) -> Result<Option<IndexSet<Identifier<N>>>> {
-        Ok(self.program_id_map().get_speculative(program_id)?.map(|names| cow_to_cloned!(names)))
+        Ok(self.program_id_map().get_speculative(program_id)?.map(|names| names.into_owned()))
     }
 
     /// Returns the confirmed mapping entries for the given `program ID` and `mapping name`.
@@ -432,10 +426,7 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
         mapping_name: Identifier<N>,
         key: &Plaintext<N>,
     ) -> Result<Option<Value<N>>> {
-        match self.key_value_map().get_value_confirmed(&(program_id, mapping_name), key)? {
-            Some(value) => Ok(Some(cow_to_cloned!(value))),
-            None => Ok(None),
-        }
+        Ok(self.key_value_map().get_value_confirmed(&(program_id, mapping_name), key)?.map(|x| x.into_owned()))
     }
 
     /// Returns the speculative value for the given `program ID`, `mapping name`, and `key`.
@@ -445,10 +436,7 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
         mapping_name: Identifier<N>,
         key: &Plaintext<N>,
     ) -> Result<Option<Value<N>>> {
-        match self.key_value_map().get_value_speculative(&(program_id, mapping_name), key)? {
-            Some(value) => Ok(Some(cow_to_cloned!(value))),
-            None => Ok(None),
-        }
+        Ok(self.key_value_map().get_value_speculative(&(program_id, mapping_name), key)?.map(|x| x.into_owned()))
     }
 
     /// Returns the confirmed checksum of the finalize storage.
@@ -458,9 +446,9 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
             .key_value_map()
             .iter_confirmed()
             .map(|(m, k, v)| {
-                let m = cow_to_copied!(m);
-                let k = cow_to_cloned!(k);
-                let v = cow_to_cloned!(v);
+                let m = *m;
+                let k = k.into_owned();
+                let v = v.into_owned();
 
                 let mut preimage = Vec::new();
                 m.write_bits_le(&mut preimage);
@@ -491,13 +479,13 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
             .key_value_map()
             .iter_pending()
             .map(|(m, k, v)| {
-                let m = cow_to_copied!(m);
+                let m = *m;
 
                 let mut preimage = Vec::new();
                 m.write_bits_le(&mut preimage);
                 false.write_bits_le(&mut preimage); // Separator.
                 if let Some(k) = k {
-                    cow_to_cloned!(k).write_bits_le(&mut preimage);
+                    k.into_owned().write_bits_le(&mut preimage);
                 }
                 false.write_bits_le(&mut preimage); // Separator.
 
@@ -505,7 +493,7 @@ pub trait FinalizeStorage<N: Network>: 'static + Clone + Send + Sync {
                 let mapping_checksum = N::hash_bhp1024(&preimage)?;
 
                 if let Some(v) = v {
-                    cow_to_cloned!(v).write_bits_le(&mut preimage);
+                    v.into_owned().write_bits_le(&mut preimage);
                 }
                 false.write_bits_le(&mut preimage); // Separator.
 
@@ -590,9 +578,14 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStore<N, P> {
 }
 
 impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<N, P> {
-    /// Returns `true` if the given `program ID` and `mapping name` exist.
+    /// Returns `true` if the given `program ID` and `mapping name` is confirmed to exist.
     fn contains_mapping_confirmed(&self, program_id: &ProgramID<N>, mapping_name: &Identifier<N>) -> Result<bool> {
         self.storage.contains_mapping_confirmed(program_id, mapping_name)
+    }
+
+    /// Returns `true` if the given `program ID` and `mapping name` exist.
+    fn contains_mapping_speculative(&self, program_id: &ProgramID<N>, mapping_name: &Identifier<N>) -> Result<bool> {
+        self.storage.contains_mapping_speculative(program_id, mapping_name)
     }
 
     /// Returns `true` if the given `program ID`, `mapping name`, and `key` exist.
@@ -1329,7 +1322,7 @@ mod tests {
             }
 
             // Prepare the key and value.
-            let item: u64 = rng.gen();
+            let item: u64 = rng.r#gen();
             let key = Plaintext::from(Literal::Field(Field::from_u64(item)));
             let value = Value::from(Literal::U64(U64::new(item)));
 

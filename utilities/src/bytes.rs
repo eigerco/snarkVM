@@ -13,13 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    Vec,
-    error,
+use std::{
     fmt,
     io::{Read, Result as IoResult, Write},
     marker::PhantomData,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 };
+
 use serde::{
     Deserializer,
     Serializer,
@@ -27,14 +27,15 @@ use serde::{
     ser::{self, SerializeTuple},
 };
 use smol_str::SmolStr;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+
+use crate::error;
 
 /// Takes as input a sequence of structs, and converts them to a series of little-endian bytes.
 /// All traits that implement `ToBytes` can be automatically converted to bytes in this manner.
 #[macro_export]
 macro_rules! to_bytes_le {
     ($($x:expr),*) => ({
-        let mut buffer = $crate::vec![];
+        let mut buffer = vec![];
         buffer.reserve(64);
         {$crate::push_bytes_to_vec!(buffer, $($x),*)}.map(|_| buffer)
     });
@@ -495,7 +496,7 @@ impl<W: Write> LimitedWriter<W> {
 impl<W: Write> Write for LimitedWriter<W> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         if self.remaining == 0 && !buf.is_empty() {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Byte limit exceeded: {}", self.limit)));
+            return Err(std::io::Error::other(format!("Byte limit exceeded: {}", self.limit)));
         }
 
         let max_write = std::cmp::min(buf.len(), self.remaining);
@@ -571,7 +572,7 @@ mod test {
         let mut rng = TestRng::default();
 
         for _ in 0..ITERATIONS {
-            let given_bytes: [u8; 32] = rng.gen();
+            let given_bytes: [u8; 32] = rng.r#gen();
 
             let bits = bits_from_bytes_le(&given_bytes).collect::<Vec<_>>();
             let recovered_bytes = bytes_from_bits_le(&bits);
@@ -583,11 +584,20 @@ mod test {
     #[test]
     fn test_socketaddr_bytes() {
         fn random_ipv4_address(rng: &mut TestRng) -> Ipv4Addr {
-            Ipv4Addr::new(rng.gen(), rng.gen(), rng.gen(), rng.gen())
+            Ipv4Addr::new(rng.r#gen(), rng.r#gen(), rng.r#gen(), rng.r#gen())
         }
 
         fn random_ipv6_address(rng: &mut TestRng) -> Ipv6Addr {
-            Ipv6Addr::new(rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen())
+            Ipv6Addr::new(
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+                rng.r#gen(),
+            )
         }
 
         fn random_port(rng: &mut TestRng) -> u16 {

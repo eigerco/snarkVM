@@ -13,12 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    Opcode,
-    Operand,
-    Operation,
-    traits::{RegistersLoad, RegistersLoadCircuit, RegistersStore, RegistersStoreCircuit, StackMatches, StackProgram},
-};
+use crate::{Opcode, Operand, Operation, RegistersCircuit, RegistersTrait, StackTrait};
 use console::{
     network::prelude::*,
     program::{Literal, LiteralType, PlaintextType, Register, RegisterType},
@@ -69,12 +64,7 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
     Literals<N, O, NUM_OPERANDS>
 {
     /// Evaluates the instruction.
-    #[inline]
-    pub fn evaluate(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn evaluate(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() != NUM_OPERANDS {
             bail!("Instruction '{}' expects {NUM_OPERANDS} operands, found {} operands", O::OPCODE, self.operands.len())
@@ -109,11 +99,10 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
     }
 
     /// Executes the instruction.
-    #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoadCircuit<N, A> + RegistersStoreCircuit<N, A>),
+        stack: &impl StackTrait<N>,
+        registers: &mut impl RegistersCircuit<N, A>,
     ) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() != NUM_OPERANDS {
@@ -128,7 +117,7 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
             inputs.iter().map(|input| RegisterType::Plaintext(PlaintextType::from(input.to_type()))).collect();
 
         // Compute the operation.
-        let output = O::execute(&inputs.try_into().map_err(|_| anyhow!("Failed to prepare operands in evaluate"))?)?;
+        let output = O::execute(&inputs.try_into().map_err(|_| anyhow!("Failed to prepare operands in execute"))?)?;
         // Compute the output type.
         let output_type = RegisterType::Plaintext(PlaintextType::from(output.to_type()));
 
@@ -145,19 +134,14 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
 
     /// Finalizes the instruction.
     #[inline]
-    pub fn finalize(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn finalize(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         self.evaluate(stack, registers)
     }
 
     /// Returns the output type from the given program and input types.
-    #[inline]
     pub fn output_types(
         &self,
-        _stack: &impl StackProgram<N>,
+        _stack: &impl StackTrait<N>,
         input_types: &[RegisterType<N>],
     ) -> Result<Vec<RegisterType<N>>> {
         // Ensure the number of input types is correct.
@@ -194,7 +178,6 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
     for Literals<N, O, NUM_OPERANDS>
 {
     /// Parses a string into an operation.
-    #[inline]
     fn parse(string: &str) -> ParserResult<Self> {
         // Parse the opcode from the string.
         let (string, _) = tag(*O::OPCODE)(string)?;
@@ -243,7 +226,6 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
     type Err = Error;
 
     /// Parses a string into an operation.
-    #[inline]
     fn from_str(string: &str) -> Result<Self> {
         match Self::parse(string) {
             Ok((remainder, object)) => {

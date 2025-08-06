@@ -72,7 +72,31 @@ pub enum Literal<A: Aleo> {
     String(StringType<A>),
 }
 
-#[cfg(feature = "console")]
+macro_rules! impl_from {
+    ($($name: ident)*) => {
+        $(
+            impl<A: Aleo> From<$name<A>> for Literal<A> {
+                fn from(value: $name<A>) -> Self {
+                    Literal::$name(value)
+                }
+            }
+        )*
+    };
+}
+
+impl_from! {
+    Address Boolean Field Group
+    I8 I16 I32 I64 I128
+    U8 U16 U32 U64 U128
+    Scalar
+}
+
+impl<A: Aleo> From<Signature<A>> for Literal<A> {
+    fn from(value: Signature<A>) -> Self {
+        Literal::Signature(Box::new(value))
+    }
+}
+
 impl<A: Aleo> Inject for Literal<A> {
     type Primitive = console::Literal<A::Network>;
 
@@ -100,7 +124,6 @@ impl<A: Aleo> Inject for Literal<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Eject for Literal<A> {
     type Primitive = console::Literal<A::Network>;
 
@@ -151,7 +174,6 @@ impl<A: Aleo> Eject for Literal<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Parser for Literal<A> {
     /// Parses a string into a literal.
     #[inline]
@@ -178,7 +200,6 @@ impl<A: Aleo> Parser for Literal<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> FromStr for Literal<A> {
     type Err = Error;
 
@@ -197,7 +218,6 @@ impl<A: Aleo> FromStr for Literal<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Literal<A> {
     /// Returns the type name of the literal.
     pub fn type_name(&self) -> &str {
@@ -223,14 +243,12 @@ impl<A: Aleo> Literal<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Debug for Literal<A> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Display for Literal<A> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {

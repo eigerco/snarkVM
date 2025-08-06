@@ -34,6 +34,11 @@ impl<N: Network, Private: Visibility<Boolean = Boolean<N>>> Equal<Self> for Reco
             return Boolean::new(false);
         }
 
+        // Check the `version`.
+        if !(*self.version.is_equal(&other.version)) {
+            return Boolean::new(false);
+        }
+
         // Check the `owner`, and `nonce`.
         if !(*self.owner.is_equal(&other.owner) && *self.nonce.is_equal(&other.nonce)) {
             return Boolean::new(false);
@@ -77,7 +82,8 @@ mod tests {
         f: 123456789field.private,
         g: 0group.private
     },
-    _nonce: 0group.public
+    _nonce: 0group.public,
+    _version: 0u8.public
 }",
         )
         .unwrap()
@@ -95,7 +101,8 @@ mod tests {
         f: 123456789field.private,
         g: 0group.private
     },
-    _nonce: 0group.public
+    _nonce: 0group.public,
+    _version: 0u8.public
 }",
         )
         .unwrap()

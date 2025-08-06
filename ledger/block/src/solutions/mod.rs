@@ -19,9 +19,9 @@ mod serialize;
 mod string;
 
 use console::{network::prelude::*, types::Field};
-use ledger_committee::Committee;
-use ledger_narwhal_batch_header::BatchHeader;
-use ledger_puzzle::{PuzzleSolutions, SolutionID};
+use snarkvm_ledger_committee::Committee;
+use snarkvm_ledger_narwhal_batch_header::BatchHeader;
+use snarkvm_ledger_puzzle::{PuzzleSolutions, SolutionID};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct Solutions<N: Network> {

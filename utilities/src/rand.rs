@@ -43,7 +43,7 @@ pub struct TestRng(XorShiftRng);
 impl Default for TestRng {
     fn default() -> Self {
         // Obtain the initial seed using entropy provided by the OS.
-        let seed = StdRng::from_entropy().gen();
+        let seed = StdRng::from_entropy().r#gen();
 
         // Use it as the basis for the underlying Rng.
         Self::fixed(seed)
@@ -125,7 +125,7 @@ impl TestRng {
             false => 0..self.gen_range(0..max_bytes),
         };
 
-        range.map(|_| self.gen::<char>()).map(adjust_unsafe_char).map(adjust_backslash_and_doublequote).collect()
+        range.map(|_| self.r#gen::<char>()).map(adjust_unsafe_char).map(adjust_backslash_and_doublequote).collect()
     }
 }
 

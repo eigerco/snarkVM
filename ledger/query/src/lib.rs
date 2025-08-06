@@ -16,6 +16,8 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::cast_possible_truncation)]
 
+extern crate snarkvm_console as console;
+
 #[cfg_attr(feature = "async", macro_use)]
 extern crate async_trait;
 
@@ -23,6 +25,11 @@ extern crate async_trait;
 mod query;
 #[cfg(feature = "query")]
 pub use query::*;
+
+#[cfg(feature = "query")]
+mod static_query;
+#[cfg(feature = "query")]
+pub use static_query::*;
 
 mod traits;
 pub use traits::*;

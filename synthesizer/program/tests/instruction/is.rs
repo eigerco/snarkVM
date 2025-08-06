@@ -23,6 +23,7 @@ use console::{
     prelude::*,
     program::{Identifier, Literal, LiteralType, Register},
 };
+use snarkvm_synthesizer_process::{Process, Stack};
 use snarkvm_synthesizer_program::{
     IsEq,
     IsInstruction,
@@ -30,10 +31,9 @@ use snarkvm_synthesizer_program::{
     Opcode,
     Operand,
     Program,
-    RegistersLoad,
-    RegistersLoadCircuit,
+    RegistersCircuit as _,
+    RegistersTrait as _,
 };
-use synthesizer_process::{Process, Stack};
 
 type CurrentNetwork = MainnetV0;
 type CurrentAleo = AleoV0;

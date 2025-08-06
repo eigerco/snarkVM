@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use console::network::Network;
-use ledger_block::Transactions;
+use snarkvm_ledger_block::Transactions;
 
 use anyhow::{Result, anyhow};
 

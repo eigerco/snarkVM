@@ -19,11 +19,8 @@ use console::{
     prelude::*,
     program::{Identifier, Literal, Plaintext, Register, Value},
 };
-use snarkvm_synthesizer_program::{
-    FinalizeGlobalState,
-    traits::{RegistersStore, RegistersStoreCircuit},
-};
-use synthesizer_process::{Authorization, CallStack, FinalizeRegisters, Registers, Stack, StackProgramTypes};
+use snarkvm_synthesizer_process::{Authorization, CallStack, FinalizeRegisters, Registers, Stack};
+use snarkvm_synthesizer_program::{FinalizeGlobalState, RegistersCircuit as _, RegistersTrait as _};
 
 type CurrentNetwork = MainnetV0;
 type CurrentAleo = AleoV0;

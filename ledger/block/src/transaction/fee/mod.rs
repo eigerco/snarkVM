@@ -23,7 +23,7 @@ use console::{
     program::{Argument, Literal, Plaintext},
     types::{Address, Field, U64},
 };
-use synthesizer_snark::Proof;
+use snarkvm_synthesizer_snark::Proof;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Fee<N: Network> {
@@ -201,21 +201,21 @@ impl<N: Network> Deref for Fee<N> {
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use algorithms::snark::varuna::VarunaVersion;
     use console::types::Field;
-    use ledger_query::Query;
-    use ledger_store::{BlockStore, helpers::memory::BlockMemory};
-    use synthesizer_process::Process;
+    use snarkvm_algorithms::snark::varuna::VarunaVersion;
+    use snarkvm_ledger_query::Query;
+    use snarkvm_ledger_store::{BlockStore, helpers::memory::BlockMemory};
+    use snarkvm_synthesizer_process::Process;
 
     use aleo_std::StorageMode;
-    use once_cell::sync::OnceCell;
+    use std::sync::OnceLock;
 
     type CurrentNetwork = console::network::MainnetV0;
-    type CurrentAleo = circuit::network::AleoV0;
+    type CurrentAleo = snarkvm_circuit::network::AleoV0;
 
     /// Samples a random hardcoded private fee.
     pub fn sample_fee_private_hardcoded(rng: &mut TestRng) -> Fee<CurrentNetwork> {
-        static INSTANCE: OnceCell<Fee<CurrentNetwork>> = OnceCell::new();
+        static INSTANCE: OnceLock<Fee<CurrentNetwork>> = OnceLock::new();
         INSTANCE
             .get_or_init(|| {
                 // Sample a deployment or execution ID.
@@ -255,6 +255,7 @@ pub mod test_helpers {
                 rng,
             )
             .unwrap();
+
         // Construct the fee trace.
         let (_, mut trace) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
 
@@ -265,7 +266,7 @@ pub mod test_helpers {
         block_store.insert(&FromStr::from_str(&block.to_string()).unwrap()).unwrap();
 
         // Prepare the assignments.
-        trace.prepare(Query::from(block_store)).unwrap();
+        trace.prepare(&Query::from(block_store)).unwrap();
         // Compute the proof and construct the fee.
         let fee = trace.prove_fee::<CurrentAleo, _>(VarunaVersion::V1, rng).unwrap();
 
@@ -276,7 +277,7 @@ pub mod test_helpers {
 
     /// Samples a random hardcoded public fee.
     pub fn sample_fee_public_hardcoded(rng: &mut TestRng) -> Fee<CurrentNetwork> {
-        static INSTANCE: OnceCell<Fee<CurrentNetwork>> = OnceCell::new();
+        static INSTANCE: OnceLock<Fee<CurrentNetwork>> = OnceLock::new();
         INSTANCE
             .get_or_init(|| {
                 // Sample a deployment or execution ID.
@@ -321,7 +322,7 @@ pub mod test_helpers {
         block_store.insert(&FromStr::from_str(&block.to_string()).unwrap()).unwrap();
 
         // Prepare the assignments.
-        trace.prepare(Query::from(block_store)).unwrap();
+        trace.prepare(&Query::from(block_store)).unwrap();
         // Compute the proof and construct the fee.
         let fee = trace.prove_fee::<CurrentAleo, _>(VarunaVersion::V1, rng).unwrap();
 

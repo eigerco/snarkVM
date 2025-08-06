@@ -16,15 +16,17 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::cast_possible_truncation)]
 
+extern crate snarkvm_console as console;
+
 mod bytes;
 mod serialize;
 mod string;
 
 use console::{account::Address, prelude::*, program::SUBDAG_CERTIFICATES_DEPTH, types::Field};
-use ledger_committee::Committee;
-use narwhal_batch_certificate::BatchCertificate;
-use narwhal_batch_header::BatchHeader;
-use narwhal_transmission_id::TransmissionID;
+use snarkvm_ledger_committee::Committee;
+use snarkvm_ledger_narwhal_batch_certificate::BatchCertificate;
+use snarkvm_ledger_narwhal_batch_header::BatchHeader;
+use snarkvm_ledger_narwhal_transmission_id::TransmissionID;
 
 use indexmap::IndexSet;
 use std::collections::BTreeMap;
@@ -265,7 +267,10 @@ pub mod test_helpers {
         let mut previous_certificate_ids = IndexSet::new();
         for _ in 0..AVAILABILITY_THRESHOLD {
             let certificate =
-                narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round(starting_round, rng);
+                snarkvm_ledger_narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round(
+                    starting_round,
+                    rng,
+                );
             previous_certificate_ids.insert(certificate.id());
             subdag.entry(starting_round).or_default().insert(certificate);
         }
@@ -274,14 +279,14 @@ pub mod test_helpers {
         let mut previous_certificate_ids_2 = IndexSet::new();
         for _ in 0..QUORUM_THRESHOLD {
             let certificate =
-                narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round_with_previous_certificate_ids(starting_round + 1, previous_certificate_ids.clone(), rng);
+                snarkvm_ledger_narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round_with_previous_certificate_ids(starting_round + 1, previous_certificate_ids.clone(), rng);
             previous_certificate_ids_2.insert(certificate.id());
             subdag.entry(starting_round + 1).or_default().insert(certificate);
         }
 
         // Process the latest round.
         let certificate =
-            narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round_with_previous_certificate_ids(
+            snarkvm_ledger_narwhal_batch_certificate::test_helpers::sample_batch_certificate_for_round_with_previous_certificate_ids(
                 starting_round + 2,
                 previous_certificate_ids_2,
                 rng,
@@ -308,7 +313,7 @@ pub mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use narwhal_batch_header::BatchHeader;
+    use snarkvm_ledger_narwhal_batch_header::BatchHeader;
 
     type CurrentNetwork = console::network::MainnetV0;
 
@@ -379,8 +384,8 @@ mod tests {
             let scaled_data: Vec<(i64, u64)> = data.iter().map(|&(t, s)| (t, s * 10)).collect();
 
             if weighted_median(data.clone()) != weighted_median(scaled_data.clone()) {
-                println!("data: {:?}", data);
-                println!("scaled_data: {:?}", scaled_data);
+                println!("data: {data:?}");
+                println!("scaled_data: {scaled_data:?}");
             }
             assert_eq!(weighted_median(data), weighted_median(scaled_data));
         }

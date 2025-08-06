@@ -15,7 +15,7 @@
 
 use super::*;
 
-use utilities::DeserializeExt;
+use snarkvm_utilities::DeserializeExt;
 
 impl<N: Network + Serialize> Serialize for Restrictions<N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -77,14 +77,14 @@ mod tests {
         let variant = rng.gen_range(0..5);
         match variant {
             0 => {
-                let start = rng.gen();
+                let start = rng.r#gen();
                 let end = rng.gen_range(start..=u32::MAX);
                 BlockRange::Range(start..end)
             }
-            1 => BlockRange::RangeFrom(rng.gen()..),
-            2 => BlockRange::RangeTo(..rng.gen()),
+            1 => BlockRange::RangeFrom(rng.r#gen()..),
+            2 => BlockRange::RangeTo(..rng.r#gen()),
             3 => {
-                let start = rng.gen();
+                let start = rng.r#gen();
                 let end = rng.gen_range(start..=u32::MAX);
                 BlockRange::RangeInclusive(start..=end)
             }
@@ -117,7 +117,7 @@ mod tests {
             // Add the argument locators.
             let mut arguments = IndexMap::new();
             for _ in 0..NUM_RESTRICTIONS {
-                let argument_locator = ArgumentLocator::new(rng.gen(), rng.gen_range(0..16));
+                let argument_locator = ArgumentLocator::new(rng.r#gen(), rng.gen_range(0..16));
 
                 // Add the literals.
                 let mut literals = IndexMap::new();

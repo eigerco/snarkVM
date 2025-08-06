@@ -177,9 +177,9 @@ impl<V: Copy + Debug + Display + Ord + Add<Output = V> + Sub<Output = V> + Mul<O
 impl<V: Copy + Debug + Display + Ord + Add<Output = V> + Sub<Output = V> + Mul<Output = V>> Display for Measurement<V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            Measurement::Exact(value) => write!(f, "{}", value),
-            Measurement::Range(lower, upper) => write!(f, "[{}, {}]", lower, upper),
-            Measurement::UpperBound(bound) => write!(f, "<={}", bound),
+            Measurement::Exact(value) => write!(f, "{value}"),
+            Measurement::Range(lower, upper) => write!(f, "[{lower}, {upper}]"),
+            Measurement::UpperBound(bound) => write!(f, "<={bound}"),
         }
     }
 }

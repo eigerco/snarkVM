@@ -16,7 +16,7 @@
 use super::verifier::QueryPoints;
 use crate::fft::{DensePolynomial, EvaluationDomain};
 use snarkvm_fields::{PrimeField, batch_inversion};
-use snarkvm_utilities::{cfg_into_iter, cfg_iter_mut, serialize::*};
+use snarkvm_utilities::{cfg_into_iter, cfg_iter_mut};
 
 use anyhow::{Result, ensure};
 use itertools::Itertools;

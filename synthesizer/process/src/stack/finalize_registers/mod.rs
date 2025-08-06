@@ -13,8 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod load;
-mod store;
+mod registers_trait;
 
 use crate::FinalizeTypes;
 use console::{
@@ -22,15 +21,7 @@ use console::{
     program::{Identifier, Literal, Plaintext, Register, Value},
     types::{U16, U32},
 };
-use synthesizer_program::{
-    FinalizeGlobalState,
-    FinalizeRegistersState,
-    Operand,
-    RegistersLoad,
-    RegistersStore,
-    StackMatches,
-    StackProgram,
-};
+use snarkvm_synthesizer_program::{FinalizeGlobalState, FinalizeRegistersState, Operand, RegistersTrait, StackTrait};
 
 use indexmap::IndexMap;
 

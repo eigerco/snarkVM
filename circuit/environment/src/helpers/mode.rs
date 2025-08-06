@@ -14,12 +14,8 @@
 // limitations under the License.
 
 use crate::prelude::*;
-use snarkvm_utilities::{
-    FromBytes,
-    ToBytes,
-    error,
-    io::{Read, Result as IoResult, Write},
-};
+use snarkvm_utilities::{FromBytes, ToBytes, error};
+use std::io::{Read, Result as IoResult, Write};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Mode {

@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::Instruction;
+
 mod input;
 use input::*;
 
@@ -22,7 +24,6 @@ use output::*;
 mod bytes;
 mod parse;
 
-use crate::InstructionTrait;
 use console::{
     network::prelude::*,
     program::{Identifier, Register, RegisterType},
@@ -31,19 +32,19 @@ use console::{
 use indexmap::IndexSet;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct ClosureCore<N: Network, Instruction: InstructionTrait<N>> {
+pub struct ClosureCore<N: Network> {
     /// The name of the closure.
     name: Identifier<N>,
     /// The input statements, added in order of the input registers.
     /// Input assignments are ensured to match the ordering of the input statements.
     inputs: IndexSet<Input<N>>,
     /// The instructions, in order of execution.
-    instructions: Vec<Instruction>,
+    instructions: Vec<Instruction<N>>,
     /// The output statements, in order of the desired output.
     outputs: IndexSet<Output<N>>,
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
+impl<N: Network> ClosureCore<N> {
     /// Initializes a new closure with the given name.
     pub fn new(name: Identifier<N>) -> Self {
         Self { name, inputs: IndexSet::new(), instructions: Vec::new(), outputs: IndexSet::new() }
@@ -60,7 +61,7 @@ impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
     }
 
     /// Returns the closure instructions.
-    pub fn instructions(&self) -> &[Instruction] {
+    pub fn instructions(&self) -> &[Instruction<N>] {
         &self.instructions
     }
 
@@ -70,7 +71,7 @@ impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
     }
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
+impl<N: Network> ClosureCore<N> {
     /// Adds the input statement to the closure.
     ///
     /// # Errors
@@ -102,7 +103,7 @@ impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
     /// This method will halt if there are output statements already.
     /// This method will halt if the maximum number of instructions has been reached.
     #[inline]
-    pub fn add_instruction(&mut self, instruction: Instruction) -> Result<()> {
+    pub fn add_instruction(&mut self, instruction: Instruction<N>) -> Result<()> {
         // Ensure that there are no outputs in memory.
         ensure!(self.outputs.is_empty(), "Cannot add instructions after outputs have been added");
 
@@ -141,7 +142,7 @@ impl<N: Network, Instruction: InstructionTrait<N>> ClosureCore<N, Instruction> {
     }
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>> TypeName for ClosureCore<N, Instruction> {
+impl<N: Network> TypeName for ClosureCore<N> {
     /// Returns the type name as a string.
     #[inline]
     fn type_name() -> &'static str {

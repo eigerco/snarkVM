@@ -26,8 +26,7 @@ extern crate criterion;
 fn create_scalar_bases<G: AffineCurve<ScalarField = F>, F: PrimeField>(size: usize) -> (Vec<G>, Vec<F::BigInteger>) {
     let mut rng = TestRng::default();
 
-    let bases = std::iter::repeat((0..(size / 1000)).map(|_| G::rand(&mut rng)).collect::<Vec<_>>())
-        .take(1000)
+    let bases = std::iter::repeat_n((0..(size / 1000)).map(|_| G::rand(&mut rng)).collect::<Vec<_>>(), 1000)
         .flatten()
         .collect::<Vec<_>>();
     let scalars = (0..size).map(|_| F::rand(&mut rng).to_bigint()).collect::<Vec<_>>();

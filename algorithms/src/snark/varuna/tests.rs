@@ -747,7 +747,7 @@ mod varuna_test_vectors {
         let path = test_vector_path(folder, file, circuit, true);
 
         // Write the test vector to file.
-        fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write to file: {:?}", path));
+        fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write to file: {path:?}"));
     }
 
     // Tests varuna against the test vectors in all circuits in the resources
@@ -766,13 +766,13 @@ mod varuna_test_vectors {
     // Test Varuna against test vectors for a specific circuit.
     fn test_circuit_with_test_vectors(create_test_vectors: bool, circuit: &str) {
         // Initialize the parts of the witness used in the multiplicative constraints.
-        let witness_path = format!("src/snark/varuna/resources/{}/witness.input", circuit);
+        let witness_path = format!("src/snark/varuna/resources/{circuit}/witness.input");
         let instance_file = fs::read_to_string(witness_path).expect("Could not read the file");
         let witness: Vec<u128> = serde_json::from_str(instance_file.lines().next().unwrap()).unwrap();
         let (a, b) = (witness[0], witness[1]);
 
         // Initialize challenges from file.
-        let challenges_path = format!("src/snark/varuna/resources/{}/challenges.input", circuit);
+        let challenges_path = format!("src/snark/varuna/resources/{circuit}/challenges.input");
         let challenges_file = fs::read_to_string(challenges_path).expect("Could not read the file");
         let mut challenges = Vec::new();
         for line in challenges_file.lines() {
@@ -806,7 +806,7 @@ mod varuna_test_vectors {
         let universal_srs = VarunaSonicInst::universal_setup(max_degree).unwrap();
         let (circ, _) =
             TestCircuit::generate_circuit_with_fixed_witness(a, b, mul_depth, num_constraints, num_variables);
-        println!("Circuit: {:?}", circ);
+        println!("Circuit: {circ:?}");
         let (index_pk, _index_vk) = VarunaSonicInst::circuit_setup(&universal_srs, &circ).unwrap();
         let mut keys_to_constraints = BTreeMap::new();
         keys_to_constraints.insert(index_pk.circuit.deref(), std::slice::from_ref(&circ));
@@ -903,7 +903,7 @@ mod varuna_test_vectors {
             constraint_domain_elements.push(el);
         }
         if create_test_vectors {
-            create_test_vector("domain", "R", &format!("{:?}", constraint_domain_elements), circuit);
+            create_test_vector("domain", "R", &format!("{constraint_domain_elements:?}"), circuit);
         }
 
         // Get non_zero_domain elements.
@@ -916,7 +916,7 @@ mod varuna_test_vectors {
             non_zero_domain_elements.push(el);
         }
         if create_test_vectors {
-            create_test_vector("domain", "K", &format!("{:?}", non_zero_domain_elements), circuit);
+            create_test_vector("domain", "K", &format!("{non_zero_domain_elements:?}"), circuit);
         }
 
         // Get variable domain elements.
@@ -925,7 +925,7 @@ mod varuna_test_vectors {
             variable_domain_elements.push(el);
         }
         if create_test_vectors {
-            create_test_vector("domain", "C", &format!("{:?}", variable_domain_elements), circuit);
+            create_test_vector("domain", "C", &format!("{variable_domain_elements:?}"), circuit);
         }
 
         let fifth_oracles = AHPForR1CS::<_, MM>::prover_fifth_round(verifier_fourth_msg, prover_state, rng).unwrap();
@@ -948,9 +948,9 @@ mod varuna_test_vectors {
         assert_test_vector_equality("polynomials", "g_c", &g_c, circuit);
 
         // Check that the domains match the test vectors.
-        assert_test_vector_equality("domain", "R", &format!("{:?}", constraint_domain_elements), circuit);
-        assert_test_vector_equality("domain", "K", &format!("{:?}", non_zero_domain_elements), circuit);
-        assert_test_vector_equality("domain", "C", &format!("{:?}", variable_domain_elements), circuit);
+        assert_test_vector_equality("domain", "R", &format!("{constraint_domain_elements:?}"), circuit);
+        assert_test_vector_equality("domain", "K", &format!("{non_zero_domain_elements:?}"), circuit);
+        assert_test_vector_equality("domain", "C", &format!("{variable_domain_elements:?}"), circuit);
     }
 
     #[test]

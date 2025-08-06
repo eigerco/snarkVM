@@ -29,7 +29,7 @@ use console::{
     program::{HEADER_DEPTH, HeaderLeaf, HeaderPath, HeaderTree},
     types::Field,
 };
-use synthesizer_program::FinalizeOperation;
+use snarkvm_synthesizer_program::FinalizeOperation;
 
 /// The header for the block contains metadata that uniquely identifies the block.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]

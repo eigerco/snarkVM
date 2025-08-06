@@ -15,7 +15,7 @@
 
 mod hash_uncompressed;
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 use snarkvm_circuit_types::environment::assert_scope;
 
 use crate::HashUncompressed;
@@ -56,7 +56,6 @@ impl<E: Environment, const NUM_WINDOWS: u8, const WINDOW_SIZE: u8> BHPHasher<E, 
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment, const NUM_WINDOWS: u8, const WINDOW_SIZE: u8> Inject for BHPHasher<E, NUM_WINDOWS, WINDOW_SIZE> {
     type Primitive = console::BHP<E::Network, NUM_WINDOWS, WINDOW_SIZE>;
 
@@ -100,7 +99,7 @@ impl<E: Environment, const NUM_WINDOWS: u8, const WINDOW_SIZE: u8> Inject for BH
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use snarkvm_circuit_types::environment::{Circuit, Eject};

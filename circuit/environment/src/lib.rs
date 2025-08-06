@@ -16,7 +16,7 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::type_complexity)]
 
-extern crate snarkvm_circuit_environment_witness;
+extern crate snarkvm_console_network as console;
 
 pub use snarkvm_circuit_environment_witness::rename_selfs;
 
@@ -133,5 +133,4 @@ pub mod prelude {
         sequence::{pair, terminated},
     };
     pub use num_traits::{self, Inv, One as NumOne, Pow, Unsigned};
-    pub use once_cell::unsync::OnceCell;
 }

@@ -31,31 +31,56 @@ use snarkvm_console_network::Network;
 use snarkvm_console_types::prelude::*;
 
 use indexmap::IndexMap;
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 
 #[derive(Clone)]
 pub enum Plaintext<N: Network> {
     /// A literal.
-    Literal(Literal<N>, OnceCell<Vec<bool>>),
+    Literal(Literal<N>, OnceLock<Vec<bool>>),
     /// A struct.
-    Struct(IndexMap<Identifier<N>, Plaintext<N>>, OnceCell<Vec<bool>>),
+    Struct(IndexMap<Identifier<N>, Plaintext<N>>, OnceLock<Vec<bool>>),
     /// An array.
-    Array(Vec<Plaintext<N>>, OnceCell<Vec<bool>>),
+    Array(Vec<Plaintext<N>>, OnceLock<Vec<bool>>),
 }
 
 impl<N: Network> From<Literal<N>> for Plaintext<N> {
     /// Returns a new `Plaintext` from a `Literal`.
     fn from(literal: Literal<N>) -> Self {
-        Self::Literal(literal, OnceCell::new())
+        Self::Literal(literal, OnceLock::new())
     }
 }
 
 impl<N: Network> From<&Literal<N>> for Plaintext<N> {
     /// Returns a new `Plaintext` from a `&Literal`.
     fn from(literal: &Literal<N>) -> Self {
-        Self::Literal(literal.clone(), OnceCell::new())
+        Self::Literal(literal.clone(), OnceLock::new())
     }
 }
+
+// A macro that derives implementations of `From` for arrays of a plaintext literals of various sizes.
+macro_rules! impl_plaintext_from_array {
+    ($element:ident, $($size:literal),+) => {
+        $(
+            impl<N: Network> From<[$element<N>; $size]> for Plaintext<N> {
+                fn from(value: [$element<N>; $size]) -> Self {
+                    Self::Array(
+                        value
+                            .into_iter()
+                            .map(|element| Plaintext::from(Literal::$element(element)))
+                            .collect(),
+                        OnceLock::new(),
+                    )
+                }
+            }
+        )+
+    };
+}
+
+// Implement for `[U8<N>, SIZE]` for sizes 1 through 32.
+impl_plaintext_from_array!(
+    U8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    31, 32
+);
 
 #[cfg(test)]
 mod tests {
@@ -89,7 +114,7 @@ mod tests {
         // Test a random field element.
         run_test(Plaintext::<CurrentNetwork>::Literal(
             Literal::Field(Field::new(Uniform::rand(&mut rng))),
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test a random struct with literal members.
@@ -100,11 +125,11 @@ mod tests {
                     Identifier::from_str("b")?,
                     Plaintext::<CurrentNetwork>::Literal(
                         Literal::Field(Field::new(Uniform::rand(&mut rng))),
-                        OnceCell::new(),
+                        OnceLock::new(),
                     ),
                 ),
             ]),
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test a random struct with array members.
@@ -118,11 +143,11 @@ mod tests {
                             Plaintext::<CurrentNetwork>::from_str("true")?,
                             Plaintext::<CurrentNetwork>::from_str("false")?,
                         ],
-                        OnceCell::new(),
+                        OnceLock::new(),
                     ),
                 ),
             ]),
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test random deeply-nested struct.
@@ -143,11 +168,11 @@ mod tests {
                                             Identifier::from_str("f")?,
                                             Plaintext::<CurrentNetwork>::Literal(
                                                 Literal::Field(Field::new(Uniform::rand(&mut rng))),
-                                                OnceCell::new(),
+                                                OnceLock::new(),
                                             ),
                                         ),
                                     ]),
-                                    OnceCell::new(),
+                                    OnceLock::new(),
                                 ),
                             ),
                             (
@@ -157,22 +182,22 @@ mod tests {
                                         Plaintext::<CurrentNetwork>::from_str("true")?,
                                         Plaintext::<CurrentNetwork>::from_str("false")?,
                                     ],
-                                    OnceCell::new(),
+                                    OnceLock::new(),
                                 ),
                             ),
                         ]),
-                        OnceCell::new(),
+                        OnceLock::new(),
                     ),
                 ),
                 (
                     Identifier::from_str("h")?,
                     Plaintext::<CurrentNetwork>::Literal(
                         Literal::Field(Field::new(Uniform::rand(&mut rng))),
-                        OnceCell::new(),
+                        OnceLock::new(),
                     ),
                 ),
             ]),
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test an array of literals.
@@ -184,7 +209,7 @@ mod tests {
                 Plaintext::<CurrentNetwork>::from_str("3field")?,
                 Plaintext::<CurrentNetwork>::from_str("4field")?,
             ],
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test an array of structs.
@@ -196,7 +221,7 @@ mod tests {
                 Plaintext::<CurrentNetwork>::from_str("{ x: 6field, y: 7field }")?,
                 Plaintext::<CurrentNetwork>::from_str("{ x: 8field, y: 9field }")?,
             ],
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         // Test a non-uniform array.
@@ -206,7 +231,7 @@ mod tests {
                 Plaintext::<CurrentNetwork>::from_str("1field")?,
                 Plaintext::<CurrentNetwork>::from_str("{ x: 4field, y: 1u8 }")?,
             ],
-            OnceCell::new(),
+            OnceLock::new(),
         ));
 
         Ok(())

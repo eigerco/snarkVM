@@ -13,6 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::{
+    fmt::{Debug, Display},
+    io::{Read, Result as IoResult, Write},
+};
+
 use crate::{
     FromBits,
     FromBytes,
@@ -20,11 +25,14 @@ use crate::{
     ToBytes,
     biginteger::BigInteger,
     bititerator::{BitIteratorBE, BitIteratorLE},
-    io::{Read, Result as IoResult, Write},
 };
 
 use anyhow::Result;
+<<<<<<< HEAD
 use core::fmt::{Debug, Display};
+=======
+use num_bigint::BigUint;
+>>>>>>> upstream/staging
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
@@ -213,7 +221,7 @@ impl BigInteger for BigInteger384 {
 
     #[inline]
     fn find_wnaf(&self) -> Vec<i64> {
-        let mut res = crate::vec::Vec::new();
+        let mut res = Vec::new();
         let mut e = *self;
         while !e.is_zero() {
             let z: i64;
@@ -336,7 +344,7 @@ impl PartialOrd for BigInteger384 {
 }
 impl Distribution<BigInteger384> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> BigInteger384 {
-        BigInteger384(rng.gen())
+        BigInteger384(rng.r#gen())
     }
 }
 impl AsMut<[u64]> for BigInteger384 {

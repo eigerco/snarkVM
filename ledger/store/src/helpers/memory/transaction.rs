@@ -28,9 +28,10 @@ use crate::{
 use console::{
     prelude::*,
     program::{Identifier, ProgramID, ProgramOwner},
+    types::U8,
 };
-use synthesizer_program::Program;
-use synthesizer_snark::{Certificate, Proof, VerifyingKey};
+use snarkvm_synthesizer_program::Program;
+use snarkvm_synthesizer_snark::{Certificate, Proof, VerifyingKey};
 
 /// An in-memory transaction storage.
 #[derive(Clone)]
@@ -92,6 +93,8 @@ impl<N: Network> TransactionStorage<N> for TransactionMemory<N> {
 pub struct DeploymentMemory<N: Network> {
     /// The ID map.
     id_map: MemoryMap<N::TransactionID, ProgramID<N>>,
+    /// The ID edition map.
+    id_edition_map: MemoryMap<N::TransactionID, u16>,
     /// The edition map.
     edition_map: MemoryMap<ProgramID<N>, u16>,
     /// The reverse ID map.
@@ -100,6 +103,8 @@ pub struct DeploymentMemory<N: Network> {
     owner_map: MemoryMap<(ProgramID<N>, u16), ProgramOwner<N>>,
     /// The program map.
     program_map: MemoryMap<(ProgramID<N>, u16), Program<N>>,
+    /// The checksum map.
+    checksum_map: MemoryMap<(ProgramID<N>, u16), [U8<N>; 32]>,
     /// The verifying key map.
     verifying_key_map: MemoryMap<(ProgramID<N>, Identifier<N>, u16), VerifyingKey<N>>,
     /// The certificate map.
@@ -111,10 +116,12 @@ pub struct DeploymentMemory<N: Network> {
 #[rustfmt::skip]
 impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     type IDMap = MemoryMap<N::TransactionID, ProgramID<N>>;
+    type IDEditionMap = MemoryMap<N::TransactionID, u16>;
     type EditionMap = MemoryMap<ProgramID<N>, u16>;
     type ReverseIDMap = MemoryMap<(ProgramID<N>, u16), N::TransactionID>;
     type OwnerMap = MemoryMap<(ProgramID<N>, u16), ProgramOwner<N>>;
     type ProgramMap = MemoryMap<(ProgramID<N>, u16), Program<N>>;
+    type ChecksumMap = MemoryMap<(ProgramID<N>, u16), [U8<N>; 32]>;
     type VerifyingKeyMap = MemoryMap<(ProgramID<N>, Identifier<N>, u16), VerifyingKey<N>>;
     type CertificateMap = MemoryMap<(ProgramID<N>, Identifier<N>, u16), Certificate<N>>;
     type FeeStorage = FeeMemory<N>;
@@ -123,10 +130,12 @@ impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     fn open(fee_store: FeeStore<N, Self::FeeStorage>) -> Result<Self> {
         Ok(Self {
             id_map: MemoryMap::default(),
+            id_edition_map: MemoryMap::default(),
             edition_map: MemoryMap::default(),
             reverse_id_map: MemoryMap::default(),
             owner_map: MemoryMap::default(),
             program_map: MemoryMap::default(),
+            checksum_map: MemoryMap::default(),
             verifying_key_map: MemoryMap::default(),
             certificate_map: MemoryMap::default(),
             fee_store,
@@ -136,6 +145,11 @@ impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     /// Returns the ID map.
     fn id_map(&self) -> &Self::IDMap {
         &self.id_map
+    }
+
+    /// Returns the ID edition map.
+    fn id_edition_map(&self) -> &Self::IDEditionMap {
+        &self.id_edition_map
     }
 
     /// Returns the edition map.
@@ -156,6 +170,11 @@ impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     /// Returns the program map.
     fn program_map(&self) -> &Self::ProgramMap {
         &self.program_map
+    }
+
+    /// Returns the checksum map.
+    fn checksum_map(&self) -> &Self::ChecksumMap {
+        &self.checksum_map
     }
 
     /// Returns the verifying key map.

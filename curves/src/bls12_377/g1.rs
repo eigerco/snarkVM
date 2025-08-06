@@ -270,7 +270,7 @@ mod tests {
             let p = G1Affine::rand(rng);
             assert!(Bls12_377G1Parameters::is_in_correct_subgroup_assuming_on_curve(&p));
             let x = Fq::rand(rng);
-            let greatest = rng.gen();
+            let greatest = rng.r#gen();
 
             if let Some(p) = G1Affine::from_x_coordinate(x, greatest) {
                 assert_eq!(

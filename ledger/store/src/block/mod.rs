@@ -22,8 +22,6 @@ use crate::{
     TransitionStorage,
     TransitionStore,
     atomic_batch_scope,
-    cow_to_cloned,
-    cow_to_copied,
     helpers::{Map, MapRead},
 };
 use console::{
@@ -31,8 +29,8 @@ use console::{
     program::{BlockTree, HeaderLeaf, ProgramID, StatePath},
     types::Field,
 };
-use ledger_authority::Authority;
-use ledger_block::{
+use snarkvm_ledger_authority::Authority;
+use snarkvm_ledger_block::{
     Block,
     ConfirmedTransaction,
     Header,
@@ -42,9 +40,9 @@ use ledger_block::{
     Transaction,
     Transactions,
 };
-use ledger_narwhal_batch_certificate::BatchCertificate;
-use ledger_puzzle::{Solution, SolutionID};
-use synthesizer_program::{FinalizeOperation, Program};
+use snarkvm_ledger_narwhal_batch_certificate::BatchCertificate;
+use snarkvm_ledger_puzzle::{Solution, SolutionID};
+use snarkvm_synthesizer_program::{FinalizeOperation, Program};
 
 use aleo_std_storage::StorageMode;
 use anyhow::Result;
@@ -468,33 +466,27 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
     /// Removes the block for the given `block hash`.
     fn remove(&self, block_hash: &N::BlockHash) -> Result<()> {
         // Retrieve the block height.
-        let block_height = match self.get_block_height(block_hash)? {
-            Some(height) => height,
-            None => bail!("Failed to remove block: missing block height for block hash '{block_hash}'"),
+        let Some(block_height) = self.get_block_height(block_hash)? else {
+            bail!("Failed to remove block: missing block height for block hash '{block_hash}'")
         };
         // Retrieve the state root.
-        let state_root = match self.state_root_map().get_confirmed(&block_height)? {
-            Some(state_root) => cow_to_copied!(state_root),
-            None => bail!("Failed to remove block: missing state root for block height '{block_height}'"),
+        let Some(state_root) = self.state_root_map().get_confirmed(&block_height)?.map(|x| *x) else {
+            bail!("Failed to remove block: missing state root for block height '{block_height}'");
         };
         // Retrieve the transaction IDs.
-        let transaction_ids = match self.transactions_map().get_confirmed(block_hash)? {
-            Some(transaction_ids) => transaction_ids,
-            None => bail!("Failed to remove block: missing transactions for block '{block_height}' ('{block_hash}')"),
+        let Some(transaction_ids) = self.transactions_map().get_confirmed(block_hash)? else {
+            bail!("Failed to remove block: missing transactions for block '{block_height}' ('{block_hash}')");
         };
         // Retrieve the solutions.
-        let solutions = match self.solutions_map().get_confirmed(block_hash)? {
-            Some(solutions) => cow_to_cloned!(solutions),
-            None => {
-                bail!("Failed to remove block: missing solutions for block '{block_height}' ('{block_hash}')")
-            }
+        let Some(solutions) = self.solutions_map().get_confirmed(block_hash)?.map(|x| x.into_owned()) else {
+            bail!("Failed to remove block: missing solutions for block '{block_height}' ('{block_hash}')");
         };
 
         // Retrieve the aborted solution IDs.
-        let aborted_solution_ids = (self.get_block_aborted_solution_ids(block_hash)?).unwrap_or_default();
+        let aborted_solution_ids = self.get_block_aborted_solution_ids(block_hash)?.unwrap_or_default();
 
         // Retrieve the aborted transaction IDs.
-        let aborted_transaction_ids = (self.get_block_aborted_transaction_ids(block_hash)?).unwrap_or_default();
+        let aborted_transaction_ids = self.get_block_aborted_transaction_ids(block_hash)?.unwrap_or_default();
 
         // Retrieve the rejected transaction IDs, and the deployment or execution ID.
         let rejected_transaction_ids_and_deployment_or_execution_id = match self.get_block_transactions(block_hash)? {
@@ -508,9 +500,9 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
         // Determine the certificate IDs to remove.
         let certificate_ids_to_remove = match self.authority_map().get_confirmed(block_hash)? {
-            Some(authority) => match authority {
+            Some(authority) => match &authority {
                 Cow::Owned(Authority::Beacon(_)) | Cow::Borrowed(Authority::Beacon(_)) => Vec::new(),
-                Cow::Owned(Authority::Quorum(ref subdag)) | Cow::Borrowed(Authority::Quorum(ref subdag)) => {
+                Cow::Owned(Authority::Quorum(subdag)) | Cow::Borrowed(Authority::Quorum(subdag)) => {
                     subdag.values().flatten().map(|c| c.id()).collect()
                 }
             },
@@ -606,10 +598,7 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the block height that contains the given `state root`.
     fn find_block_height_from_state_root(&self, state_root: N::StateRoot) -> Result<Option<u32>> {
-        match self.reverse_state_root_map().get_confirmed(&state_root)? {
-            Some(block_height) => Ok(Some(cow_to_copied!(block_height))),
-            None => Ok(None),
-        }
+        Ok(self.reverse_state_root_map().get_confirmed(&state_root)?.map(|x| *x))
     }
 
     /// Returns the block hash that contains the given `transaction ID`.
@@ -627,21 +616,16 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the block height that contains the given `solution ID`.
     fn find_block_height_from_solution_id(&self, solution_id: &SolutionID<N>) -> Result<Option<u32>> {
-        match self.solution_ids_map().get_confirmed(solution_id)? {
-            Some(block_height) => Ok(Some(cow_to_copied!(block_height))),
-            None => match self.aborted_solution_heights_map().get_confirmed(solution_id)? {
-                Some(block_height) => Ok(Some(cow_to_copied!(block_height))),
-                None => Ok(None),
-            },
+        Ok(match self.solution_ids_map().get_confirmed(solution_id)? {
+            some @ Some(..) => some,
+            None => self.aborted_solution_heights_map().get_confirmed(solution_id)?,
         }
+        .map(|x| *x))
     }
 
     /// Returns the state root that contains the given `block height`.
     fn get_state_root(&self, block_height: u32) -> Result<Option<N::StateRoot>> {
-        match self.state_root_map().get_confirmed(&block_height)? {
-            Some(state_root) => Ok(Some(cow_to_copied!(state_root))),
-            None => Ok(None),
-        }
+        Ok(self.state_root_map().get_confirmed(&block_height)?.map(|x| *x))
     }
 
     /// Returns a state path for the given `commitment`.
@@ -654,25 +638,22 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
         // Find the transition that contains the commitment.
         let transition_id = self.transition_store().find_transition_id(commitment)?;
         // Find the transaction that contains the transition.
-        let transaction_id = match self.transaction_store().find_transaction_id_from_transition_id(&transition_id)? {
-            Some(transaction_id) => transaction_id,
-            None => bail!("The transaction ID for commitment '{commitment}' is missing in storage"),
+        let Some(transaction_id) = self.transaction_store().find_transaction_id_from_transition_id(&transition_id)?
+        else {
+            bail!("The transaction ID for commitment '{commitment}' is missing in storage");
         };
         // Find the block that contains the transaction.
-        let block_hash = match self.find_block_hash(&transaction_id)? {
-            Some(block_hash) => block_hash,
-            None => bail!("The block hash for commitment '{commitment}' is missing in storage"),
+        let Some(block_hash) = self.find_block_hash(&transaction_id)? else {
+            bail!("The block hash for commitment '{commitment}' is missing in storage");
         };
 
         // Retrieve the transition.
-        let transition = match self.transition_store().get_transition(&transition_id)? {
-            Some(transition) => transition,
-            None => bail!("The transition '{transition_id}' for commitment '{commitment}' is missing in storage"),
+        let Some(transition) = self.transition_store().get_transition(&transition_id)? else {
+            bail!("The transition '{transition_id}' for commitment '{commitment}' is missing in storage");
         };
         // Retrieve the block.
-        let block = match self.get_block(&block_hash)? {
-            Some(block) => block,
-            None => bail!("The block '{block_hash}' for commitment '{commitment}' is missing in storage"),
+        let Some(block) = self.get_block(&block_hash)? else {
+            bail!("The block '{block_hash}' for commitment '{commitment}' is missing in storage");
         };
 
         // Construct the global state root and block path.
@@ -691,15 +672,13 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
         // Construct the transactions path.
         let transactions = block.transactions();
-        let transactions_path = match transactions.to_path(transaction_id) {
-            Ok(transactions_path) => transactions_path,
-            Err(_) => bail!("The transaction '{transaction_id}' for commitment '{commitment}' is not in the block"),
+        let Ok(transactions_path) = transactions.to_path(transaction_id) else {
+            bail!("The transaction '{transaction_id}' for commitment '{commitment}' is not in the block");
         };
 
         // Construct the transaction path and transaction leaf.
-        let transaction = match transactions.get(&transaction_id) {
-            Some(transaction) => transaction,
-            None => bail!("The transaction '{transaction_id}' for commitment '{commitment}' is not in the block"),
+        let Some(transaction) = transactions.get(&transaction_id) else {
+            bail!("The transaction '{transaction_id}' for commitment '{commitment}' is not in the block");
         };
         let transaction_leaf = transaction.to_leaf(transition.id())?;
         let transaction_path = transaction.to_path(&transaction_leaf)?;
@@ -731,45 +710,31 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the previous block hash of the given `block height`.
     fn get_previous_block_hash(&self, height: u32) -> Result<Option<N::BlockHash>> {
-        match height.is_zero() {
-            true => Ok(Some(N::BlockHash::default())),
-            false => match self.id_map().get_confirmed(&(height - 1))? {
-                Some(block_hash) => Ok(Some(cow_to_copied!(block_hash))),
-                None => Ok(None),
-            },
+        if height.is_zero() {
+            Ok(Some(N::BlockHash::default()))
+        } else {
+            Ok(self.id_map().get_confirmed(&(height - 1))?.map(|x| *x))
         }
     }
 
     /// Returns the block hash for the given `block height`.
     fn get_block_hash(&self, height: u32) -> Result<Option<N::BlockHash>> {
-        match self.id_map().get_confirmed(&height)? {
-            Some(block_hash) => Ok(Some(cow_to_copied!(block_hash))),
-            None => Ok(None),
-        }
+        Ok(self.id_map().get_confirmed(&height)?.map(|x| *x))
     }
 
     /// Returns the block height for the given `block hash`.
     fn get_block_height(&self, block_hash: &N::BlockHash) -> Result<Option<u32>> {
-        match self.reverse_id_map().get_confirmed(block_hash)? {
-            Some(height) => Ok(Some(cow_to_copied!(height))),
-            None => Ok(None),
-        }
+        Ok(self.reverse_id_map().get_confirmed(block_hash)?.map(|x| *x))
     }
 
     /// Returns the block header for the given `block hash`.
     fn get_block_header(&self, block_hash: &N::BlockHash) -> Result<Option<Header<N>>> {
-        match self.header_map().get_confirmed(block_hash)? {
-            Some(header) => Ok(Some(cow_to_cloned!(header))),
-            None => Ok(None),
-        }
+        Ok(self.header_map().get_confirmed(block_hash)?.map(|x| x.into_owned()))
     }
 
     /// Returns the block authority for the given `block hash`.
     fn get_block_authority(&self, block_hash: &N::BlockHash) -> Result<Option<Authority<N>>> {
-        match self.authority_map().get_confirmed(block_hash)? {
-            Some(authority) => Ok(Some(cow_to_cloned!(authority))),
-            None => Ok(None),
-        }
+        Ok(self.authority_map().get_confirmed(block_hash)?.map(|x| x.into_owned()))
     }
 
     /// Returns true if there is a block that contains the specified certificate.
@@ -780,9 +745,8 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
     /// Returns the batch certificate for the given `certificate ID`.
     fn get_batch_certificate(&self, certificate_id: &Field<N>) -> Result<Option<BatchCertificate<N>>> {
         // Retrieve the height and round for the given certificate ID.
-        let (block_height, round) = match self.certificate_map().get_confirmed(certificate_id)? {
-            Some(block_height_and_round) => cow_to_copied!(block_height_and_round),
-            None => return Ok(None),
+        let Some((block_height, round)) = self.certificate_map().get_confirmed(certificate_id)?.map(|x| *x) else {
+            return Ok(None);
         };
         // Retrieve the block hash.
         let Some(block_hash) = self.get_block_hash(block_height)? else {
@@ -793,8 +757,8 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
             bail!("The authority for '{block_hash}' is missing in block storage")
         };
         // Retrieve the certificate for the given certificate ID.
-        match authority {
-            Cow::Owned(Authority::Quorum(ref subdag)) | Cow::Borrowed(Authority::Quorum(ref subdag)) => {
+        match &authority {
+            Cow::Owned(Authority::Quorum(subdag)) | Cow::Borrowed(Authority::Quorum(subdag)) => {
                 match subdag.get(&round) {
                     Some(certificates) => {
                         // Retrieve the certificate for the given certificate ID.
@@ -814,18 +778,15 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the block ratifications for the given `block hash`.
     fn get_block_ratifications(&self, block_hash: &N::BlockHash) -> Result<Option<Ratifications<N>>> {
-        match self.ratifications_map().get_confirmed(block_hash)? {
-            Some(ratifications) => Ok(Some(cow_to_cloned!(ratifications))),
-            None => Ok(None),
-        }
+        Ok(self.ratifications_map().get_confirmed(block_hash)?.map(|x| x.into_owned()))
     }
 
     /// Returns the block solutions for the given `block hash`.
     fn get_block_solutions(&self, block_hash: &N::BlockHash) -> Result<Solutions<N>> {
-        match self.solutions_map().get_confirmed(block_hash)? {
-            Some(solutions) => Ok(cow_to_cloned!(solutions)),
-            None => bail!("Missing solutions for block ('{block_hash}')"),
-        }
+        let Some(solutions) = self.solutions_map().get_confirmed(block_hash)? else {
+            bail!("Missing solutions for block ('{block_hash}')");
+        };
+        Ok(solutions.into_owned())
     }
 
     /// Returns the prover solution for the given solution ID.
@@ -844,7 +805,7 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
         };
         // Retrieve the prover solution.
         match solutions.deref().deref() {
-            Some(ref solutions) => solutions.get(solution_id).cloned().ok_or_else(|| {
+            Some(solutions) => solutions.get(solution_id).cloned().ok_or_else(|| {
                 anyhow!("The prover solution for solution ID '{solution_id}' is missing in block storage")
             }),
             _ => bail!("The prover solution for solution ID '{solution_id}' is missing in block storage"),
@@ -853,18 +814,14 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the block aborted solution IDs for the given `block hash`.
     fn get_block_aborted_solution_ids(&self, block_hash: &N::BlockHash) -> Result<Option<Vec<SolutionID<N>>>> {
-        match self.aborted_solution_ids_map().get_confirmed(block_hash)? {
-            Some(aborted_solution_ids) => Ok(Some(cow_to_cloned!(aborted_solution_ids))),
-            None => Ok(None),
-        }
+        Ok(self.aborted_solution_ids_map().get_confirmed(block_hash)?.map(|x| x.into_owned()))
     }
 
     /// Returns the block transactions for the given `block hash`.
     fn get_block_transactions(&self, block_hash: &N::BlockHash) -> Result<Option<Transactions<N>>> {
         // Retrieve the transaction IDs.
-        let transaction_ids = match self.transactions_map().get_confirmed(block_hash)? {
-            Some(transaction_ids) => transaction_ids,
-            None => return Ok(None),
+        let Some(transaction_ids) = self.transactions_map().get_confirmed(block_hash)? else {
+            return Ok(None);
         };
         // Retrieve the transactions.
         transaction_ids
@@ -875,52 +832,44 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
 
     /// Returns the block aborted transaction IDs for the given `block hash`.
     fn get_block_aborted_transaction_ids(&self, block_hash: &N::BlockHash) -> Result<Option<Vec<N::TransactionID>>> {
-        match self.aborted_transaction_ids_map().get_confirmed(block_hash)? {
-            Some(aborted_transaction_ids) => Ok(Some(cow_to_cloned!(aborted_transaction_ids))),
-            None => Ok(None),
-        }
+        Ok(self.aborted_transaction_ids_map().get_confirmed(block_hash)?.map(|x| x.into_owned()))
     }
 
     /// Returns the transaction for the given `TransactionID`.
     fn get_transaction(&self, transaction_id: &N::TransactionID) -> Result<Option<Transaction<N>>> {
         // Check if the transaction was rejected or aborted.
         // Note: We can only retrieve accepted or rejected transactions. We cannot retrieve aborted transactions.
-        match self.rejected_or_aborted_transaction_id_map().get_confirmed(transaction_id)? {
-            Some(block_hash) => match self.get_block_transactions(&block_hash)? {
-                Some(transactions) => {
-                    match transactions.find_confirmed_transaction_for_unconfirmed_transaction_id(transaction_id) {
-                        Some(confirmed) => Ok(Some(confirmed.transaction().clone())),
-                        None => {
-                            // Check if the transaction was aborted.
-                            if let Some(aborted_ids) = self.get_block_aborted_transaction_ids(&block_hash)? {
-                                if aborted_ids.contains(transaction_id) {
-                                    bail!("Transaction '{transaction_id}' was aborted in block '{block_hash}'");
-                                }
-                            }
-                            bail!("Missing transaction '{transaction_id}' in block storage");
-                        }
-                    }
+        let Some(block_hash) = self.rejected_or_aborted_transaction_id_map().get_confirmed(transaction_id)? else {
+            return self.transaction_store().get_transaction(transaction_id);
+        };
+        let Some(transactions) = self.get_block_transactions(&block_hash)? else {
+            bail!("Missing transactions for block '{block_hash}' in block storage")
+        };
+
+        let Some(confirmed) = transactions.find_confirmed_transaction_for_unconfirmed_transaction_id(transaction_id)
+        else {
+            if let Some(aborted_ids) = self.get_block_aborted_transaction_ids(&block_hash)? {
+                if aborted_ids.contains(transaction_id) {
+                    bail!("Transaction '{transaction_id}' was aborted in block '{block_hash}'");
                 }
-                None => bail!("Missing transactions for block '{block_hash}' in block storage"),
-            },
-            None => self.transaction_store().get_transaction(transaction_id),
-        }
+            }
+            bail!("Missing transaction '{transaction_id}' in block storage");
+        };
+        Ok(Some(confirmed.transaction().clone()))
     }
 
     /// Returns the confirmed transaction for the given `transaction ID`.
     fn get_confirmed_transaction(&self, transaction_id: N::TransactionID) -> Result<Option<ConfirmedTransaction<N>>> {
         // Retrieve the transaction.
-        let transaction = match self.get_transaction(&transaction_id) {
-            Ok(Some(transaction)) => transaction,
-            Ok(None) => bail!("Missing transaction '{transaction_id}' in block storage"),
-            Err(err) => return Err(err),
+        let Some(transaction) = self.get_transaction(&transaction_id)? else {
+            bail!("Missing transaction '{transaction_id}' in block storage");
         };
         // Retrieve the confirmed attributes.
-        let (_, confirmed_type, finalize_operations) =
-            match self.confirmed_transactions_map().get_confirmed(&transaction.id())? {
-                Some(confirmed_attributes) => cow_to_cloned!(confirmed_attributes),
-                None => bail!("Missing confirmed transaction '{transaction_id}' in block storage"),
-            };
+        let Some((_, confirmed_type, finalize_operations)) =
+            self.confirmed_transactions_map().get_confirmed(&transaction.id())?.map(|x| x.into_owned())
+        else {
+            bail!("Missing confirmed transaction '{transaction_id}' in block storage")
+        };
         // Construct the confirmed transaction.
         to_confirmed_transaction(confirmed_type, transaction, finalize_operations).map(Some)
     }
@@ -1021,6 +970,9 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
             aborted_transaction_ids,
         )?))
     }
+
+    #[cfg(feature = "rocks")]
+    fn backup_database<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String>;
 }
 
 /// The block store.
@@ -1193,6 +1145,11 @@ impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
     pub fn unpause_atomic_writes<const DISCARD_BATCH: bool>(&self) -> Result<()> {
         self.storage.unpause_atomic_writes::<DISCARD_BATCH>()
     }
+
+    #[cfg(feature = "rocks")]
+    pub fn backup_database<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        self.storage.backup_database(path)
+    }
 }
 
 impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
@@ -1220,7 +1177,7 @@ impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
 
     /// Returns the current block height.
     pub fn current_block_height(&self) -> u32 {
-        u32::try_from(self.tree.read().number_of_leaves()).unwrap() - 1
+        u32::try_from(self.tree.read().number_of_leaves()).unwrap().saturating_sub(1)
     }
 
     /// Returns the state root that contains the given `block height`.
@@ -1313,9 +1270,19 @@ impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
         self.storage.get_block(block_hash)
     }
 
-    /// Returns the program for the given `program ID`.
-    pub fn get_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
-        self.storage.transaction_store().get_program(program_id)
+    /// Returns the latest edition for the given `program ID`.
+    pub fn get_latest_edition_for_program(&self, program_id: &ProgramID<N>) -> Result<Option<u16>> {
+        self.storage.transaction_store().get_latest_edition_for_program(program_id)
+    }
+
+    /// Returns the latest program for the given `program ID`.
+    pub fn get_latest_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
+        self.storage.transaction_store().get_latest_program(program_id)
+    }
+
+    /// Returns the program for the given `program ID` and `edition`.
+    pub fn get_program_for_edition(&self, program_id: &ProgramID<N>, edition: u16) -> Result<Option<Program<N>>> {
+        self.storage.transaction_store().get_program_for_edition(program_id, edition)
     }
 
     /// Returns true if there is a block for the given certificate.
@@ -1412,11 +1379,23 @@ mod tests {
     type CurrentNetwork = console::network::MainnetV0;
 
     #[test]
+    fn test_current_block_height_empty() {
+        // Initialize a new block store.
+        let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(StorageMode::new_test(None)).unwrap();
+
+        // Current_block_height shouldn't panic.
+        assert_eq!(block_store.current_block_height(), 0);
+
+        // Verify the equivalence of the alternative method.
+        assert_eq!(block_store.max_height().unwrap_or_default(), 0);
+    }
+
+    #[test]
     fn test_insert_get_remove() {
         let rng = &mut TestRng::default();
 
         // Sample the block.
-        let block = ledger_test_helpers::sample_genesis_block(rng);
+        let block = snarkvm_ledger_test_helpers::sample_genesis_block(rng);
         let block_hash = block.hash();
 
         // Initialize a new block store.
@@ -1446,7 +1425,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the block.
-        let block = ledger_test_helpers::sample_genesis_block(rng);
+        let block = snarkvm_ledger_test_helpers::sample_genesis_block(rng);
         let block_hash = block.hash();
         assert!(block.transactions().num_accepted() > 0, "This test must be run with at least one transaction.");
 
@@ -1487,7 +1466,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the block.
-        let block = ledger_test_helpers::sample_genesis_block(rng);
+        let block = snarkvm_ledger_test_helpers::sample_genesis_block(rng);
         assert!(block.transactions().num_accepted() > 0, "This test must be run with at least one transaction.");
 
         // Initialize a new block store.
@@ -1506,7 +1485,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the block.
-        let block = ledger_test_helpers::sample_genesis_block(rng);
+        let block = snarkvm_ledger_test_helpers::sample_genesis_block(rng);
         assert!(block.transactions().num_accepted() > 0, "This test must be run with at least one transaction.");
 
         // Initialize a new block store.
@@ -1525,7 +1504,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the block.
-        let block = ledger_test_helpers::sample_genesis_block(rng);
+        let block = snarkvm_ledger_test_helpers::sample_genesis_block(rng);
         assert!(block.transactions().num_accepted() > 0, "This test must be run with at least one transaction.");
 
         // Initialize a new block store.
@@ -1547,12 +1526,12 @@ mod tests {
     fn test_rejected_transaction() {
         let rng = &mut TestRng::default();
 
-        let private_key = ledger_test_helpers::sample_genesis_private_key(rng);
+        let private_key = snarkvm_ledger_test_helpers::sample_genesis_private_key(rng);
 
         let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(StorageMode::new_test(None)).unwrap();
 
-        let fee = ledger_test_helpers::sample_fee_public_transaction(rng);
-        let rejected = ledger_test_helpers::sample_rejected_execution(false, rng);
+        let fee = snarkvm_ledger_test_helpers::sample_fee_public_transaction(rng);
+        let rejected = snarkvm_ledger_test_helpers::sample_rejected_execution(false, rng);
         let transactions =
             Transactions::from_iter([
                 ConfirmedTransaction::rejected_execute(0, fee.clone(), rejected.clone(), vec![]).unwrap()

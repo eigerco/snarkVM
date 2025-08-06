@@ -21,7 +21,7 @@ use crate::helpers::{Map, MapRead};
 use core::{fmt, fmt::Debug, hash::Hash, mem};
 use indexmap::IndexMap;
 use smallvec::SmallVec;
-use std::{borrow::Cow, ops::Deref, sync::atomic::Ordering};
+use std::{borrow::Cow, ops::Deref, path::Path, sync::atomic::Ordering};
 use tracing::error;
 
 #[derive(Clone)]
@@ -48,10 +48,17 @@ pub struct InnerDataMap<K: Serialize + DeserializeOwned, V: Serialize + Deserial
     pub(super) checkpoints: Mutex<Vec<usize>>,
 }
 
+impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> InnerDataMap<K, V> {
+    pub fn backup_database<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        let checkpoint = rocksdb::checkpoint::Checkpoint::new(&self.database)?;
+        checkpoint.create_checkpoint(path).map_err(|e| e.into_string())
+    }
+}
+
 impl<
     'a,
     K: 'a + Copy + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned + Send + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
+    V: 'a + Clone + Serialize + DeserializeOwned + Send + Sync,
 > Map<'a, K, V> for DataMap<K, V>
 {
     ///
@@ -258,7 +265,7 @@ impl<
 impl<
     'a,
     K: 'a + Copy + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned + Send + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
+    V: 'a + Clone + Serialize + DeserializeOwned + Send + Sync,
 > MapRead<'a, K, V> for DataMap<K, V>
 {
     type Iterator = Iter<'a, K, V>;
@@ -404,17 +411,14 @@ impl<
 pub struct Iter<
     'a,
     K: 'a + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
-    V: 'a + PartialEq + Eq + Serialize + DeserializeOwned,
+    V: 'a + Serialize + DeserializeOwned,
 > {
     db_iter: rocksdb::DBRawIterator<'a>,
     _phantom: PhantomData<(K, V)>,
 }
 
-impl<
-    'a,
-    K: 'a + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
-    V: 'a + PartialEq + Eq + Serialize + DeserializeOwned,
-> Iter<'a, K, V>
+impl<'a, K: 'a + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned, V: 'a + Serialize + DeserializeOwned>
+    Iter<'a, K, V>
 {
     pub(super) fn new(db_iter: rocksdb::DBIterator<'a>) -> Self {
         Self { db_iter: db_iter.into(), _phantom: PhantomData }
@@ -424,7 +428,7 @@ impl<
 impl<
     'a,
     K: 'a + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned,
+    V: 'a + Clone + Serialize + DeserializeOwned,
 > Iterator for Iter<'a, K, V>
 {
     type Item = (Cow<'a, K>, Cow<'a, V>);
@@ -488,18 +492,18 @@ impl<'a, K: 'a + Clone + Debug + PartialEq + Eq + Hash + Serialize + Deserialize
 }
 
 /// An iterator over the values of a prefix.
-pub struct Values<'a, V: 'a + PartialEq + Eq + Serialize + DeserializeOwned> {
+pub struct Values<'a, V: 'a + Serialize + DeserializeOwned> {
     db_iter: rocksdb::DBRawIterator<'a>,
     _phantom: PhantomData<V>,
 }
 
-impl<'a, V: 'a + PartialEq + Eq + Serialize + DeserializeOwned> Values<'a, V> {
+impl<'a, V: 'a + Serialize + DeserializeOwned> Values<'a, V> {
     pub(crate) fn new(db_iter: rocksdb::DBIterator<'a>) -> Self {
         Self { db_iter: db_iter.into(), _phantom: PhantomData }
     }
 }
 
-impl<'a, V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned> Iterator for Values<'a, V> {
+impl<'a, V: 'a + Clone + Serialize + DeserializeOwned> Iterator for Values<'a, V> {
     type Item = Cow<'a, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -638,6 +642,11 @@ mod tests {
             self.extra_maps.finish_atomic()
         }
 
+        fn abort_atomic(&self) {
+            self.own_map.abort_atomic();
+            self.extra_maps.abort_atomic();
+        }
+
         // While the methods above mimic the typical snarkVM ones, this method is purely for testing.
         fn is_atomic_in_progress_everywhere(&self) -> bool {
             self.own_map.is_atomic_in_progress()
@@ -697,6 +706,12 @@ mod tests {
             self.own_map2.finish_atomic()?;
             self.extra_maps.finish_atomic()
         }
+
+        fn abort_atomic(&self) {
+            self.own_map1.abort_atomic();
+            self.own_map2.abort_atomic();
+            self.extra_maps.abort_atomic();
+        }
     }
 
     struct TestStorage3 {
@@ -730,6 +745,10 @@ mod tests {
 
         fn finish_atomic(&self) -> Result<()> {
             self.own_map.finish_atomic()
+        }
+
+        fn abort_atomic(&self) {
+            self.own_map.abort_atomic();
         }
     }
 

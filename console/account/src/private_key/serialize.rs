@@ -33,7 +33,7 @@ impl<'de, N: Network> Deserialize<'de> for PrivateKey<N> {
             false => FromBytesDeserializer::<Self>::deserialize(
                 deserializer,
                 "private key",
-                (N::Scalar::size_in_bits() + 7) / 8,
+                N::Scalar::size_in_bits().div_ceil(8),
             ),
         }
     }

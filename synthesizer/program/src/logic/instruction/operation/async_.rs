@@ -13,15 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    Opcode,
-    Operand,
-    RegistersLoadCircuit,
-    RegistersStore,
-    RegistersStoreCircuit,
-    Result,
-    traits::{RegistersLoad, StackMatches, StackProgram},
-};
+use crate::{Opcode, Operand, RegistersCircuit, RegistersTrait, Result, StackTrait};
 
 use circuit::{Inject, Mode};
 use console::{
@@ -72,11 +64,7 @@ impl<N: Network> Async<N> {
 impl<N: Network> Async<N> {
     /// Evaluates the instruction.
     #[inline]
-    pub fn evaluate(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn evaluate(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() > N::MAX_INPUTS {
             bail!("'{}' expects <= {} operands, found {} operands", Self::opcode(), N::MAX_INPUTS, self.operands.len())
@@ -104,8 +92,8 @@ impl<N: Network> Async<N> {
     /// Executes the instruction.
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoadCircuit<N, A> + RegistersStoreCircuit<N, A>),
+        stack: &impl StackTrait<N>,
+        registers: &mut impl RegistersCircuit<N, A>,
     ) -> Result<()> {
         // Ensure the number of operands is correct.
         if self.operands.len() > N::MAX_INPUTS {
@@ -137,11 +125,7 @@ impl<N: Network> Async<N> {
 
     /// Finalizes the instruction.
     #[inline]
-    pub fn finalize(
-        &self,
-        _stack: &(impl StackMatches<N> + StackProgram<N>),
-        _registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn finalize(&self, _stack: &impl StackTrait<N>, _registers: &mut impl RegistersTrait<N>) -> Result<()> {
         bail!("Forbidden operation: Finalize cannot invoke 'async'.")
     }
 
@@ -149,7 +133,7 @@ impl<N: Network> Async<N> {
     #[inline]
     pub fn output_types(
         &self,
-        stack: &impl StackProgram<N>,
+        stack: &impl StackTrait<N>,
         input_types: &[RegisterType<N>],
     ) -> Result<Vec<RegisterType<N>>> {
         // Ensure that an associated finalize block exists.

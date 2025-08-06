@@ -18,7 +18,7 @@ use crate::{
     traits::{AffineCurve, ProjectiveCurve, TwistedEdwardsParameters as Parameters},
 };
 use snarkvm_fields::{Field, One, PrimeField, Zero, impl_add_sub_from_field_ref};
-use snarkvm_utilities::{FromBytes, ToBytes, bititerator::BitIteratorBE, rand::Uniform, serialize::*};
+use snarkvm_utilities::{FromBytes, ToBytes, bititerator::BitIteratorBE, rand::Uniform};
 
 use core::{
     fmt::{Display, Formatter, Result as FmtResult},
@@ -112,7 +112,7 @@ impl<P: Parameters> Distribution<Projective<P>> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Projective<P> {
         loop {
             let x = P::BaseField::rand(rng);
-            let greatest = rng.gen();
+            let greatest = rng.r#gen();
 
             if let Some(p) = Affine::from_x_coordinate(x, greatest) {
                 return p.mul_by_cofactor_to_projective();
@@ -156,7 +156,7 @@ impl<P: Parameters> ProjectiveCurve for Projective<P> {
     }
 
     fn batch_normalization(v: &mut [Self]) {
-        // Montgomery’s Trick and Fast Implementation of Masked AES
+        // Montgomery's Trick and Fast Implementation of Masked AES
         // Genelle, Prouff and Quisquater
         // Section 3.2
 
@@ -234,7 +234,6 @@ impl<P: Parameters> ProjectiveCurve for Projective<P> {
     }
 
     #[inline]
-    #[must_use]
     fn double(&self) -> Self {
         let mut result = *self;
         result.double_in_place();

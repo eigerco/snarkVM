@@ -51,6 +51,6 @@ impl From<std::io::Error> for GroupError {
 
 impl From<GroupError> for std::io::Error {
     fn from(error: GroupError) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("{error}"))
+        std::io::Error::other(format!("{error}"))
     }
 }

@@ -29,7 +29,7 @@ use snarkvm_fields::PrimeField;
 use snarkvm_utilities::cfg_into_iter;
 
 use itertools::Itertools;
-use rand_core::RngCore;
+use rand::RngCore;
 use std::collections::BTreeMap;
 
 #[cfg(not(feature = "serial"))]

@@ -15,6 +15,9 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
+extern crate snarkvm_console as console;
+
 pub use modules::*;
 
 pub mod modules {

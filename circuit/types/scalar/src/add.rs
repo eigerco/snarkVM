@@ -93,7 +93,9 @@ impl<E: Environment> AddAssign<&Scalar<E>> for Scalar<E> {
             let bits_le = wrapping_sum.to_lower_bits_le(console::Scalar::<E::Network>::size_in_bits());
 
             // Set the sum of `self` and `other`, in `self`.
-            *self = Scalar { field: wrapping_sum, bits_le: OnceCell::with_value(bits_le) };
+            let cell = OnceCell::new();
+            cell.set(bits_le).unwrap();
+            *self = Scalar { field: wrapping_sum, bits_le: cell };
         }
     }
 }

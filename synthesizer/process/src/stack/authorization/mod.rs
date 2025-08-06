@@ -18,7 +18,8 @@ mod serialize;
 mod string;
 
 use console::{network::prelude::*, program::Request, types::Field};
-use ledger_block::{Transaction, Transition};
+use snarkvm_ledger_block::{Transaction, Transition};
+use snarkvm_synthesizer_program::StackTrait;
 
 use indexmap::IndexMap;
 #[cfg(feature = "locktick")]
@@ -133,6 +134,66 @@ impl<N: Network> Authorization<N> {
             }
             _ => false,
         }
+    }
+
+    /// Returns `true` if the authorization is for call to `credits.aleo/upgrade`.
+    pub fn is_upgrade(&self) -> bool {
+        let requests = self.requests.read();
+        match requests.len() {
+            1 => {
+                let program_id = requests[0].program_id().to_string();
+                let function_name = requests[0].function_name().to_string();
+                &program_id == "credits.aleo" && &function_name == "upgrade"
+            }
+            _ => false,
+        }
+    }
+
+    /// Checks whether the authorization is for a valid program edition.
+    pub fn check_valid_edition(&self, process: &crate::Process<N>, _consensus_version: ConsensusVersion) -> Result<()> {
+        // Determine the root transition's program ID.
+        let transitions = self.transitions.read();
+        let program_ids = transitions.iter().map(|(_, t)| t.program_id());
+        for program_id in program_ids {
+            // There is only one credits.aleo edition, so we can safely skip this case.
+            if program_id.to_string() != "credits.aleo" {
+                // Get the stack.
+                let stack = process.get_stack(program_id)?;
+                // Get the program edition.
+                let _program_edition = *stack.program_edition();
+                // If we're past `ConsensusVersion::V8` but before `ConsensusVersion::V9`, ensure new stacks are not on edition 0.
+                // Note. This check does not apply to programs with constructors.
+                #[cfg(not(any(test, feature = "test")))]
+                if _consensus_version >= ConsensusVersion::V8
+                    && _program_edition == 0
+                    && !stack.program().contains_constructor()
+                {
+                    bail!("Cannot execute {program_id} on edition {_program_edition}");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Checks whether the authorization creates valid records.
+    pub fn check_valid_records(&self, consensus_version: ConsensusVersion) -> Result<()> {
+        let transitions = self.transitions.read();
+        // Collect the transition's output records.
+        let output_records = transitions
+            .values()
+            .flat_map(|transition| transition.outputs().iter().filter_map(|output| output.record()));
+        // Ensure the records are valid.
+        for (_, record) in output_records {
+            // if the consensus version is on or after `ConsensusVersion::V8`, ensure the output record is on Version 1.
+            if consensus_version >= ConsensusVersion::V8 {
+                ensure!(record.version().is_one(), "Output record must be Version 1 on or after Consensus V8");
+            }
+            // We do not impose checks on record versions before
+            // `ConsensusVersion::V8`, to avoid:
+            // - breaking snarkOS tests which have version 1 records in their genesis blocks.
+            // - breaking production wallets which use version 0 records before ConsensusVersion::V8.
+        }
+        Ok(())
     }
 }
 

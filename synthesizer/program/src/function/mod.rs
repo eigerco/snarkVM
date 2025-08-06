@@ -22,10 +22,7 @@ use output::*;
 mod bytes;
 mod parse;
 
-use crate::{
-    finalize::FinalizeCore,
-    traits::{CommandTrait, InstructionTrait},
-};
+use crate::{Instruction, finalize::FinalizeCore};
 use console::{
     network::prelude::*,
     program::{Identifier, Register, ValueType, Variant},
@@ -34,21 +31,21 @@ use console::{
 use indexmap::IndexSet;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct FunctionCore<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> {
+pub struct FunctionCore<N: Network> {
     /// The name of the function.
     name: Identifier<N>,
     /// The input statements, added in order of the input registers.
     /// Input assignments are ensured to match the ordering of the input statements.
     inputs: IndexSet<Input<N>>,
     /// The instructions, in order of execution.
-    instructions: Vec<Instruction>,
+    instructions: Vec<Instruction<N>>,
     /// The output statements, in order of the desired output.
     outputs: IndexSet<Output<N>>,
     /// The optional finalize logic.
-    finalize_logic: Option<FinalizeCore<N, Command>>,
+    finalize_logic: Option<FinalizeCore<N>>,
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> FunctionCore<N, Instruction, Command> {
+impl<N: Network> FunctionCore<N> {
     /// Initializes a new function with the given name.
     pub fn new(name: Identifier<N>) -> Self {
         Self { name, inputs: IndexSet::new(), instructions: Vec::new(), outputs: IndexSet::new(), finalize_logic: None }
@@ -75,7 +72,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Fun
     }
 
     /// Returns the function instructions.
-    pub fn instructions(&self) -> &[Instruction] {
+    pub fn instructions(&self) -> &[Instruction<N>] {
         &self.instructions
     }
 
@@ -95,12 +92,12 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Fun
     }
 
     /// Returns the function finalize logic.
-    pub const fn finalize_logic(&self) -> Option<&FinalizeCore<N, Command>> {
+    pub const fn finalize_logic(&self) -> Option<&FinalizeCore<N>> {
         self.finalize_logic.as_ref()
     }
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> FunctionCore<N, Instruction, Command> {
+impl<N: Network> FunctionCore<N> {
     /// Adds the input statement to the function.
     ///
     /// # Errors
@@ -137,7 +134,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Fun
     /// This method will halt if the maximum number of instructions has been reached.
     /// This method will halt if a finalize logic has been added.
     #[inline]
-    pub fn add_instruction(&mut self, instruction: Instruction) -> Result<()> {
+    pub fn add_instruction(&mut self, instruction: Instruction<N>) -> Result<()> {
         // Ensure that there are no output statements in memory.
         ensure!(self.outputs.is_empty(), "Cannot add instructions after outputs have been added");
 
@@ -189,7 +186,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Fun
     /// This method will halt if the maximum number of finalize inputs has been reached.
     /// This method will halt if the number of finalize operands does not match the number of finalize inputs.
     #[inline]
-    fn add_finalize(&mut self, finalize: FinalizeCore<N, Command>) -> Result<()> {
+    fn add_finalize(&mut self, finalize: FinalizeCore<N>) -> Result<()> {
         // Ensure there is no finalize scope in memory.
         ensure!(self.finalize_logic.is_none(), "Cannot add multiple finalize scopes to function '{}'", self.name);
         // Ensure the finalize scope name matches the function name.
@@ -203,9 +200,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Fun
     }
 }
 
-impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> TypeName
-    for FunctionCore<N, Instruction, Command>
-{
+impl<N: Network> TypeName for FunctionCore<N> {
     /// Returns the type name as a string.
     #[inline]
     fn type_name() -> &'static str {

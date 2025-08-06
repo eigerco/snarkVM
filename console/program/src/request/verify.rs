@@ -19,8 +19,9 @@ impl<N: Network> Request<N> {
     /// Returns `true` if the request is valid, and `false` otherwise.
     ///
     /// Verifies (challenge == challenge') && (address == address') && (serial_numbers == serial_numbers') where:
-    ///     challenge' := HashToScalar(r * G, pk_sig, pr_sig, signer, \[tvk, tcm, function ID, input IDs\])
-    pub fn verify(&self, input_types: &[ValueType<N>], is_root: bool) -> bool {
+    ///     challenge' := HashToScalar(r * G, pk_sig, pr_sig, signer, \[tvk, tcm, function ID, is_root, program checksum?, input IDs\])
+    /// The program checksum must be provided if the program has a constructor and should not be provided otherwise.
+    pub fn verify(&self, input_types: &[ValueType<N>], is_root: bool, program_checksum: Option<Field<N>>) -> bool {
         // Verify the transition public key, transition view key, and transition commitment are well-formed.
         {
             // Compute the transition commitment `tcm` as `Hash(tvk)`.
@@ -62,6 +63,10 @@ impl<N: Network> Request<N> {
         message.push(self.tcm);
         message.push(function_id);
         message.push(is_root);
+        // Add the program checksum to the signature message if it was provided.
+        if let Some(program_checksum) = program_checksum {
+            message.push(program_checksum);
+        }
 
         if let Err(error) = self.input_ids.iter().zip_eq(&self.inputs).zip_eq(input_types).enumerate().try_for_each(
             |(index, ((input_id, input), input_type))| {
@@ -127,13 +132,13 @@ impl<N: Network> Request<N> {
                         // Hash the ciphertext to a field element.
                         let candidate_hash = N::hash_psd8(&ciphertext.to_fields()?)?;
                         // Ensure the input hash matches.
-                        ensure!(*input_hash == candidate_hash, "Expected a private input with the same commitment");
+                        ensure!(*input_hash == candidate_hash, "Expected a private input with the same hash");
 
                         // Add the input hash to the message.
                         message.push(candidate_hash);
                     }
                     // A record input is computed to its serial number.
-                    InputID::Record(commitment, gamma, serial_number, tag) => {
+                    InputID::Record(commitment, gamma, record_view_key, serial_number, tag) => {
                         // Retrieve the record.
                         let record = match &input {
                             Value::Record(record) => record,
@@ -151,9 +156,13 @@ impl<N: Network> Request<N> {
                         ensure!(**record.owner() == self.signer, "Input record does not belong to the signer");
 
                         // Compute the record commitment.
-                        let candidate_cm = record.to_commitment(&self.program_id, record_name)?;
+                        let candidate_commitment =
+                            record.to_commitment(&self.program_id, record_name, record_view_key)?;
                         // Ensure the commitment matches.
-                        ensure!(*commitment == candidate_cm, "Expected a record input with the same commitment");
+                        ensure!(
+                            *commitment == candidate_commitment,
+                            "Expected a record input with the same commitment"
+                        );
 
                         // Compute the `candidate_sn` from `gamma`.
                         let candidate_sn = Record::<N, Plaintext<N>>::serial_number_from_gamma(gamma, *commitment)?;
@@ -222,7 +231,7 @@ mod tests {
     fn test_sign_and_verify() {
         let rng = &mut TestRng::default();
 
-        for _ in 0..ITERATIONS {
+        for i in 0..ITERATIONS {
             // Sample a random private key and address.
             let private_key = PrivateKey::<CurrentNetwork>::new(rng).unwrap();
             let address = Address::try_from(&private_key).unwrap();
@@ -257,6 +266,11 @@ mod tests {
             let root_tvk = None;
             // Sample 'is_root'.
             let is_root = Uniform::rand(rng);
+            // Sample 'program_checksum'.
+            let program_checksum = match i % 2 == 0 {
+                true => Some(Field::rand(rng)),
+                false => None,
+            };
 
             // Compute the signed request.
             let request = Request::sign(
@@ -267,10 +281,11 @@ mod tests {
                 &input_types,
                 root_tvk,
                 is_root,
+                program_checksum,
                 rng,
             )
             .unwrap();
-            assert!(request.verify(&input_types, is_root));
+            assert!(request.verify(&input_types, is_root, program_checksum));
         }
     }
 }

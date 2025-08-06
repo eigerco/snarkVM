@@ -32,7 +32,6 @@ pub enum Access<A: Aleo> {
     Index(U32<A>),
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Inject for Access<A> {
     type Primitive = console::Access<A::Network>;
 
@@ -46,7 +45,6 @@ impl<A: Aleo> Inject for Access<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Eject for Access<A> {
     type Primitive = console::Access<A::Network>;
 
@@ -67,7 +65,6 @@ impl<A: Aleo> Eject for Access<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Parser for Access<A> {
     /// Parses a UTF-8 string into an access.
     #[inline]
@@ -79,7 +76,6 @@ impl<A: Aleo> Parser for Access<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> FromStr for Access<A> {
     type Err = Error;
 
@@ -98,14 +94,12 @@ impl<A: Aleo> FromStr for Access<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Debug for Access<A> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Display for Access<A> {
     /// Prints the identifier as a string.
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

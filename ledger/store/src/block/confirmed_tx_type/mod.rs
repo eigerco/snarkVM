@@ -41,29 +41,29 @@ pub mod test_helpers {
     /// Samples an accepted deploy.
     pub(crate) fn sample_accepted_deploy(rng: &mut TestRng) -> ConfirmedTxType<CurrentNetwork> {
         // Return the accepted deploy.
-        ConfirmedTxType::AcceptedDeploy(rng.gen())
+        ConfirmedTxType::AcceptedDeploy(rng.r#gen())
     }
 
     /// Samples an accepted execution.
     pub(crate) fn sample_accepted_execution(rng: &mut TestRng) -> ConfirmedTxType<CurrentNetwork> {
         // Return the accepted execution.
-        ConfirmedTxType::AcceptedExecute(rng.gen())
+        ConfirmedTxType::AcceptedExecute(rng.r#gen())
     }
 
     /// Samples a rejected deploy.
-    pub(crate) fn sample_rejected_deploy(rng: &mut TestRng) -> ConfirmedTxType<CurrentNetwork> {
+    pub(crate) fn sample_rejected_deploy(version: u8, rng: &mut TestRng) -> ConfirmedTxType<CurrentNetwork> {
         // Sample the rejected deployment.
-        let rejected = ledger_test_helpers::sample_rejected_deployment(rng.gen(), rng);
+        let rejected = snarkvm_ledger_test_helpers::sample_rejected_deployment(version, rng.r#gen(), rng.r#gen(), rng);
         // Return the rejected deploy.
-        ConfirmedTxType::RejectedDeploy(rng.gen(), rejected)
+        ConfirmedTxType::RejectedDeploy(rng.r#gen(), rejected)
     }
 
     /// Samples a rejected execution.
     pub(crate) fn sample_rejected_execute(rng: &mut TestRng) -> ConfirmedTxType<CurrentNetwork> {
         // Sample the rejected execution.
-        let rejected = ledger_test_helpers::sample_rejected_execution(rng.gen(), rng);
+        let rejected = snarkvm_ledger_test_helpers::sample_rejected_execution(rng.r#gen(), rng);
         // Return the rejected execution.
-        ConfirmedTxType::RejectedExecute(rng.gen(), rejected)
+        ConfirmedTxType::RejectedExecute(rng.r#gen(), rejected)
     }
 
     /// Sample a list of randomly rejected transactions.
@@ -73,7 +73,8 @@ pub mod test_helpers {
         vec![
             sample_accepted_deploy(rng),
             sample_accepted_execution(rng),
-            sample_rejected_deploy(rng),
+            sample_rejected_deploy(1, rng),
+            sample_rejected_deploy(2, rng),
             sample_rejected_execute(rng),
         ]
     }

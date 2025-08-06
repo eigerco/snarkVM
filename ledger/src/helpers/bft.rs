@@ -16,9 +16,9 @@
 #![allow(clippy::type_complexity)]
 
 use console::network::Network;
-use ledger_block::{Ratify, Transaction};
-use ledger_narwhal::{Transmission, TransmissionID};
-use ledger_puzzle::Solution;
+use snarkvm_ledger_block::{Ratify, Transaction};
+use snarkvm_ledger_narwhal::{Transmission, TransmissionID};
+use snarkvm_ledger_puzzle::Solution;
 
 use anyhow::{Result, bail, ensure};
 use std::collections::HashSet;

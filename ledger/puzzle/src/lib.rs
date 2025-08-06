@@ -17,6 +17,8 @@
 #![allow(clippy::too_many_arguments)]
 #![warn(clippy::cast_possible_truncation)]
 
+extern crate snarkvm_console as console;
+
 mod partial_solution;
 pub use partial_solution::*;
 
@@ -437,12 +439,12 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for batch_size in 1..=CurrentNetwork::MAX_SOLUTIONS {
             // Initialize the solutions.
             let solutions = (0..batch_size)
-                .map(|_| puzzle.prove(epoch_hash, rng.gen(), rng.gen(), None).unwrap())
+                .map(|_| puzzle.prove(epoch_hash, rng.r#gen(), rng.r#gen(), None).unwrap())
                 .collect::<Vec<_>>();
             let solutions = PuzzleSolutions::new(solutions).unwrap();
 
@@ -450,7 +452,7 @@ mod tests {
             assert!(puzzle.check_solutions(&solutions, epoch_hash, 0u64).is_ok());
 
             // Ensure the solutions are invalid.
-            let bad_epoch_hash = rng.gen();
+            let bad_epoch_hash = rng.r#gen();
             assert!(puzzle.check_solutions(&solutions, bad_epoch_hash, 0u64).is_err());
         }
     }
@@ -463,7 +465,7 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for _ in 0..ITERATIONS {
             let private_key = PrivateKey::<CurrentNetwork>::new(&mut rng).unwrap();
@@ -497,14 +499,14 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         // Generate inputs.
         let private_key = PrivateKey::<CurrentNetwork>::new(&mut rng).unwrap();
         let address = Address::try_from(private_key).unwrap();
 
         // Generate a solution.
-        let solution = puzzle.prove(epoch_hash, address, rng.gen(), None).unwrap();
+        let solution = puzzle.prove(epoch_hash, address, rng.r#gen(), None).unwrap();
         assert!(puzzle.check_solution(&solution, epoch_hash, 0u64).is_ok());
 
         let solutions = PuzzleSolutions::new(vec![solution]).unwrap();
@@ -519,14 +521,14 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         // Generate inputs.
         let private_key = PrivateKey::<CurrentNetwork>::new(&mut rng).unwrap();
         let address = Address::try_from(private_key).unwrap();
 
         // Generate a solution.
-        let solution = puzzle.prove(epoch_hash, address, rng.gen(), None).unwrap();
+        let solution = puzzle.prove(epoch_hash, address, rng.r#gen(), None).unwrap();
 
         // Generate a solution with an incorrect target.
         let incorrect_solution = Solution::new(*solution.partial_solution(), solution.target().saturating_add(1));
@@ -555,13 +557,13 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for batch_size in 1..=CurrentNetwork::MAX_SOLUTIONS {
             // Initialize the incorrect solutions.
             let incorrect_solutions = (0..batch_size)
                 .map(|_| {
-                    let solution = puzzle.prove(epoch_hash, rng.gen(), rng.gen(), None).unwrap();
+                    let solution = puzzle.prove(epoch_hash, rng.r#gen(), rng.r#gen(), None).unwrap();
                     Solution::new(*solution.partial_solution(), solution.target().saturating_add(1))
                 })
                 .collect::<Vec<_>>();
@@ -584,11 +586,11 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
         // Initialize an address.
-        let address = rng.gen();
+        let address = rng.r#gen();
         // Initialize a counter.
-        let counter = rng.gen();
+        let counter = rng.r#gen();
 
         for batch_size in 1..=CurrentNetwork::MAX_SOLUTIONS {
             // Initialize the solutions.
@@ -614,14 +616,14 @@ mod tests {
         let mut rng = TestRng::default();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for batch_size in 1..=CurrentNetwork::MAX_SOLUTIONS {
             // Initialize a new puzzle.
             let puzzle = sample_puzzle();
             // Initialize the solutions.
             let solutions = (0..batch_size)
-                .map(|_| puzzle.prove(epoch_hash, rng.gen(), rng.gen(), None).unwrap())
+                .map(|_| puzzle.prove(epoch_hash, rng.r#gen(), rng.r#gen(), None).unwrap())
                 .collect::<Vec<_>>();
             let solutions = PuzzleSolutions::new(solutions).unwrap();
 
@@ -643,14 +645,14 @@ mod tests {
         let mut rng = TestRng::default();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for batch_size in 1..=CurrentNetwork::MAX_SOLUTIONS {
             // Initialize a new puzzle.
             let puzzle = sample_puzzle();
             // Initialize the solutions.
             let solutions = (0..batch_size)
-                .map(|_| puzzle.prove(epoch_hash, rng.gen(), rng.gen(), None).unwrap())
+                .map(|_| puzzle.prove(epoch_hash, rng.r#gen(), rng.r#gen(), None).unwrap())
                 .collect::<Vec<_>>();
             let solutions = PuzzleSolutions::new(solutions).unwrap();
 
@@ -660,7 +662,7 @@ mod tests {
             // Partially fill the cache.
             for solution in solutions.values() {
                 // Flip a coin.
-                if rng.gen::<bool>() {
+                if rng.r#gen::<bool>() {
                     // This operation will fill the cache.
                     puzzle.get_proof_target(solution).unwrap();
                 }
@@ -693,7 +695,7 @@ mod tests {
         let puzzle = sample_puzzle();
 
         // Initialize an epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
 
         for batch_size in [1, 2, <CurrentNetwork as Network>::MAX_SOLUTIONS] {
             // Generate the solutions.

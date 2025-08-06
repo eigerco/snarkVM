@@ -15,7 +15,8 @@
 
 use super::*;
 
+mod check_upgrade;
 mod initialize;
-mod matches;
 mod sample;
+mod stack_trait;
 mod synthesize;

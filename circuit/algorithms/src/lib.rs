@@ -16,6 +16,8 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments)]
 
+extern crate snarkvm_console_algorithms as console;
+
 pub mod bhp;
 pub use bhp::*;
 

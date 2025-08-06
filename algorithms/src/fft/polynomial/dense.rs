@@ -80,7 +80,7 @@ impl<F: Field> DensePolynomial<F> {
         }
         // Check that either the coefficients vec are empty or that the last coeff is
         // non-zero.
-        assert!(coeffs.last().map_or(true, |coeff| !coeff.is_zero()));
+        assert!(coeffs.last().is_none_or(|coeff| !coeff.is_zero()));
 
         Self { coeffs }
     }
@@ -90,7 +90,7 @@ impl<F: Field> DensePolynomial<F> {
         if self.is_zero() {
             0
         } else {
-            assert!(self.coeffs.last().map_or(false, |coeff| !coeff.is_zero()));
+            assert!(self.coeffs.last().is_some_and(|coeff| !coeff.is_zero()));
             self.coeffs.len() - 1
         }
     }

@@ -291,7 +291,7 @@ where
                 .collect::<Vec<usize>>();
 
             let degree_bound = if let Some(degree_bounds) = &mut degree_bounds {
-                if !supported_degree_bounds_after_trimmed.is_empty() && rng.gen() {
+                if !supported_degree_bounds_after_trimmed.is_empty() && rng.r#gen() {
                     let range = distributions::Uniform::from(0..supported_degree_bounds_after_trimmed.len());
                     let idx = range.sample(rng);
 
@@ -419,7 +419,7 @@ fn equation_test_template<E: PairingEngine, S: AlgebraicSponge<E::Fq, 2>>(
                 .collect::<Vec<usize>>();
 
             let degree_bound = if let Some(degree_bounds) = &mut degree_bounds {
-                if !supported_degree_bounds_after_trimmed.is_empty() && rng.gen() {
+                if !supported_degree_bounds_after_trimmed.is_empty() && rng.r#gen() {
                     let range = distributions::Uniform::from(0..supported_degree_bounds_after_trimmed.len());
                     let idx = range.sample(rng);
 
@@ -468,7 +468,7 @@ fn equation_test_template<E: PairingEngine, S: AlgebraicSponge<E::Fq, 2>>(
                 let mut lc = LinearCombination::empty(label.clone());
 
                 let mut value = E::Fr::zero();
-                let should_have_degree_bounds: bool = rng.gen();
+                let should_have_degree_bounds: bool = rng.r#gen();
                 for (k, label) in labels.iter().enumerate() {
                     if should_have_degree_bounds {
                         value += &polynomials[k].evaluate(point);

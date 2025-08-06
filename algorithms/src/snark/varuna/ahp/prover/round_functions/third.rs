@@ -39,7 +39,7 @@ use snarkvm_utilities::{ExecutionPool, cfg_iter};
 
 use anyhow::{Result, ensure};
 use itertools::Itertools;
-use rand_core::RngCore;
+use rand::RngCore;
 use std::collections::BTreeMap;
 
 #[cfg(not(feature = "serial"))]
@@ -179,7 +179,7 @@ impl<F: PrimeField, SM: SNARKMode> AHPForR1CS<F, SM> {
                 // Destructure the optional z_m_at_alpha_polys to a vector of optional
                 // DensePolynomials.
                 let z_m_at_alpha_for_circuit = match &mut circuit_specific_state.z_m_at_alpha_polys {
-                    Some(ref mut z_m_at_alpha) => {
+                    Some(z_m_at_alpha) => {
                         ensure!(z_m_at_alpha.len() > 0);
                         let Some([z_a_at_alpha, z_b_at_alpha, z_c_at_alpha]) = z_m_at_alpha.pop_front() else {
                             anyhow::bail!("Expected z_m_at_alpha_polys to contain sufficient elements.")

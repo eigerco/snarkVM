@@ -64,7 +64,7 @@ impl<'de, N: Network> Deserialize<'de> for Solutions<N> {
 pub(super) mod tests {
     use super::*;
     use console::account::{Address, PrivateKey};
-    use ledger_puzzle::{PartialSolution, Solution};
+    use snarkvm_ledger_puzzle::{PartialSolution, Solution};
 
     type CurrentNetwork = console::network::MainnetV0;
 
@@ -74,7 +74,7 @@ pub(super) mod tests {
         for _ in 0..rng.gen_range(1..=CurrentNetwork::MAX_SOLUTIONS) {
             let private_key = PrivateKey::<CurrentNetwork>::new(rng).unwrap();
             let address = Address::try_from(private_key).unwrap();
-            let partial_solution = PartialSolution::new(rng.gen(), address, u64::rand(rng)).unwrap();
+            let partial_solution = PartialSolution::new(rng.r#gen(), address, u64::rand(rng)).unwrap();
             solutions.push(Solution::new(partial_solution, u64::rand(rng)));
         }
         Solutions::new(PuzzleSolutions::new(solutions).unwrap()).unwrap()

@@ -34,12 +34,15 @@ use console::{
         Value,
         ValueType,
     },
-    types::{Address, Field},
+    types::{Address, Field, U8, U16},
 };
 use rand::{CryptoRng, Rng};
-use synthesizer_snark::{ProvingKey, VerifyingKey};
+use snarkvm_synthesizer_snark::{ProvingKey, VerifyingKey};
 
-pub trait StackKeys<N: Network> {
+/// This trait is intended to be implemented only by `snarkvm_synthesizer_process::Stack`.
+///
+/// We make it a trait only to avoid circular dependencies.
+pub trait StackTrait<N: Network> {
     /// Returns `true` if the proving key for the given function name exists.
     fn contains_proving_key(&self, function_name: &Identifier<N>) -> bool;
 
@@ -63,9 +66,7 @@ pub trait StackKeys<N: Network> {
 
     /// Removes the verifying key for the given function name.
     fn remove_verifying_key(&self, function_name: &Identifier<N>);
-}
 
-pub trait StackMatches<N: Network> {
     /// Checks that the given value matches the layout of the value type.
     fn matches_value_type(&self, value: &Value<N>, value_type: &ValueType<N>) -> Result<()>;
 
@@ -83,9 +84,7 @@ pub trait StackMatches<N: Network> {
 
     /// Checks that the given future matches the layout of the future type.
     fn matches_future(&self, future: &Future<N>, locator: &Locator<N>) -> Result<()>;
-}
 
-pub trait StackProgram<N: Network> {
     /// Returns the program.
     fn program(&self) -> &Program<N>;
 
@@ -94,6 +93,22 @@ pub trait StackProgram<N: Network> {
 
     /// Returns the program address.
     fn program_address(&self) -> &Address<N>;
+
+    /// Returns the program checksum.
+    fn program_checksum(&self) -> &[U8<N>; 32];
+
+    /// Returns the program checksum as a field element.
+    fn program_checksum_as_field(&self) -> Result<Field<N>>;
+
+    /// Returns the program edition.
+    fn program_edition(&self) -> U16<N>;
+
+    /// Returns the program owner.
+    /// The program owner should only be set for programs that are deployed after `ConsensusVersion::V9` is active.
+    fn program_owner(&self) -> &Option<Address<N>>;
+
+    /// Sets the program owner.
+    fn set_program_owner(&mut self, program_owner: Option<Address<N>>);
 
     /// Returns the external stack for the given program ID.
     fn get_external_stack(&self, program_id: &ProgramID<N>) -> Result<Arc<Self>>;
@@ -135,7 +150,7 @@ pub trait StackProgram<N: Network> {
     ) -> Result<Record<N, Plaintext<N>>>;
 }
 
-pub trait FinalizeRegistersState<N: Network> {
+pub trait FinalizeRegistersState<N: Network>: RegistersTrait<N> {
     /// Returns the global state for the finalize scope.
     fn state(&self) -> &FinalizeGlobalState;
 
@@ -149,7 +164,7 @@ pub trait FinalizeRegistersState<N: Network> {
     fn nonce(&self) -> u64;
 }
 
-pub trait RegistersSigner<N: Network> {
+pub trait RegistersSigner<N: Network>: RegistersTrait<N> {
     /// Returns the transition signer.
     fn signer(&self) -> Result<Address<N>>;
 
@@ -175,7 +190,68 @@ pub trait RegistersSigner<N: Network> {
     fn set_tvk(&mut self, tvk: Field<N>);
 }
 
-pub trait RegistersSignerCircuit<N: Network, A: circuit::Aleo<Network = N>> {
+pub trait RegistersTrait<N: Network> {
+    /// Loads the value of a given operand.
+    ///
+    /// # Errors
+    /// This method should halt if the register locator is not found.
+    /// In the case of register members, this method should halt if the member is not found.
+    fn load(&self, stack: &impl StackTrait<N>, operand: &Operand<N>) -> Result<Value<N>>;
+
+    /// Loads the literal of a given operand.
+    ///
+    /// # Errors
+    /// This method should halt if the given operand is not a literal.
+    /// This method should halt if the register locator is not found.
+    /// In the case of register members, this method should halt if the member is not found.
+    fn load_literal(&self, stack: &impl StackTrait<N>, operand: &Operand<N>) -> Result<Literal<N>> {
+        match self.load(stack, operand)? {
+            Value::Plaintext(Plaintext::Literal(literal, ..)) => Ok(literal),
+            Value::Plaintext(Plaintext::Struct(..))
+            | Value::Plaintext(Plaintext::Array(..))
+            | Value::Record(..)
+            | Value::Future(..) => {
+                bail!("Operand must be a literal")
+            }
+        }
+    }
+
+    /// Loads the plaintext of a given operand.
+    ///
+    /// # Errors
+    /// This method should halt if the given operand is not a plaintext.
+    /// This method should halt if the register locator is not found.
+    /// In the case of register members, this method should halt if the member is not found.
+    fn load_plaintext(&self, stack: &impl StackTrait<N>, operand: &Operand<N>) -> Result<Plaintext<N>> {
+        match self.load(stack, operand)? {
+            Value::Plaintext(plaintext) => Ok(plaintext),
+            Value::Record(..) | Value::Future(..) => bail!("Operand must be a plaintext"),
+        }
+    }
+
+    /// Assigns the given value to the given register, assuming the register is not already assigned.
+    ///
+    /// # Errors
+    /// This method should halt if the given register is a register member.
+    /// This method should halt if the given register is an input register.
+    /// This method should halt if the register is already used.
+    fn store(&mut self, stack: &impl StackTrait<N>, register: &Register<N>, stack_value: Value<N>) -> Result<()>;
+
+    /// Assigns the given literal to the given register, assuming the register is not already assigned.
+    ///
+    /// # Errors
+    /// This method should halt if the given register is a register member.
+    /// This method should halt if the given register is an input register.
+    /// This method should halt if the register is already used.
+    fn store_literal(&mut self, stack: &impl StackTrait<N>, register: &Register<N>, literal: Literal<N>) -> Result<()> {
+        self.store(stack, register, Value::Plaintext(Plaintext::from(literal)))
+    }
+}
+
+/// This trait is intended to be implemented only by `snarkvm_synthesizer_process::Registers`.
+///
+/// We make it a trait only to avoid circular dependencies.
+pub trait RegistersCircuit<N: Network, A: circuit::Aleo<Network = N>> {
     /// Returns the transition signer, as a circuit.
     fn signer_circuit(&self) -> Result<circuit::Address<A>>;
 
@@ -199,15 +275,13 @@ pub trait RegistersSignerCircuit<N: Network, A: circuit::Aleo<Network = N>> {
 
     /// Sets the transition view key, as a circuit.
     fn set_tvk_circuit(&mut self, tvk_circuit: circuit::Field<A>);
-}
 
-pub trait RegistersLoad<N: Network> {
     /// Loads the value of a given operand.
     ///
     /// # Errors
     /// This method should halt if the register locator is not found.
     /// In the case of register members, this method should halt if the member is not found.
-    fn load(&self, stack: &(impl StackMatches<N> + StackProgram<N>), operand: &Operand<N>) -> Result<Value<N>>;
+    fn load_circuit(&self, stack: &impl StackTrait<N>, operand: &Operand<N>) -> Result<circuit::Value<A>>;
 
     /// Loads the literal of a given operand.
     ///
@@ -215,66 +289,7 @@ pub trait RegistersLoad<N: Network> {
     /// This method should halt if the given operand is not a literal.
     /// This method should halt if the register locator is not found.
     /// In the case of register members, this method should halt if the member is not found.
-    #[inline]
-    fn load_literal(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        operand: &Operand<N>,
-    ) -> Result<Literal<N>> {
-        match self.load(stack, operand)? {
-            Value::Plaintext(Plaintext::Literal(literal, ..)) => Ok(literal),
-            Value::Plaintext(Plaintext::Struct(..))
-            | Value::Plaintext(Plaintext::Array(..))
-            | Value::Record(..)
-            | Value::Future(..) => {
-                bail!("Operand must be a literal")
-            }
-        }
-    }
-
-    /// Loads the plaintext of a given operand.
-    ///
-    /// # Errors
-    /// This method should halt if the given operand is not a plaintext.
-    /// This method should halt if the register locator is not found.
-    /// In the case of register members, this method should halt if the member is not found.
-    #[inline]
-    fn load_plaintext(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        operand: &Operand<N>,
-    ) -> Result<Plaintext<N>> {
-        match self.load(stack, operand)? {
-            Value::Plaintext(plaintext) => Ok(plaintext),
-            Value::Record(..) | Value::Future(..) => bail!("Operand must be a plaintext"),
-        }
-    }
-}
-
-pub trait RegistersLoadCircuit<N: Network, A: circuit::Aleo<Network = N>> {
-    /// Loads the value of a given operand.
-    ///
-    /// # Errors
-    /// This method should halt if the register locator is not found.
-    /// In the case of register members, this method should halt if the member is not found.
-    fn load_circuit(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        operand: &Operand<N>,
-    ) -> Result<circuit::Value<A>>;
-
-    /// Loads the literal of a given operand.
-    ///
-    /// # Errors
-    /// This method should halt if the given operand is not a literal.
-    /// This method should halt if the register locator is not found.
-    /// In the case of register members, this method should halt if the member is not found.
-    #[inline]
-    fn load_literal_circuit(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        operand: &Operand<N>,
-    ) -> Result<circuit::Literal<A>> {
+    fn load_literal_circuit(&self, stack: &impl StackTrait<N>, operand: &Operand<N>) -> Result<circuit::Literal<A>> {
         match self.load_circuit(stack, operand)? {
             circuit::Value::Plaintext(circuit::Plaintext::Literal(literal, ..)) => Ok(literal),
             circuit::Value::Plaintext(circuit::Plaintext::Struct(..))
@@ -290,10 +305,9 @@ pub trait RegistersLoadCircuit<N: Network, A: circuit::Aleo<Network = N>> {
     /// This method should halt if the given operand is not a plaintext.
     /// This method should halt if the register locator is not found.
     /// In the case of register members, this method should halt if the member is not found.
-    #[inline]
     fn load_plaintext_circuit(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &impl StackTrait<N>,
         operand: &Operand<N>,
     ) -> Result<circuit::Plaintext<A>> {
         match self.load_circuit(stack, operand)? {
@@ -301,40 +315,7 @@ pub trait RegistersLoadCircuit<N: Network, A: circuit::Aleo<Network = N>> {
             circuit::Value::Record(..) | circuit::Value::Future(..) => bail!("Operand must be a plaintext"),
         }
     }
-}
 
-pub trait RegistersStore<N: Network> {
-    /// Assigns the given value to the given register, assuming the register is not already assigned.
-    ///
-    /// # Errors
-    /// This method should halt if the given register is a register member.
-    /// This method should halt if the given register is an input register.
-    /// This method should halt if the register is already used.
-    fn store(
-        &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        register: &Register<N>,
-        stack_value: Value<N>,
-    ) -> Result<()>;
-
-    /// Assigns the given literal to the given register, assuming the register is not already assigned.
-    ///
-    /// # Errors
-    /// This method should halt if the given register is a register member.
-    /// This method should halt if the given register is an input register.
-    /// This method should halt if the register is already used.
-    #[inline]
-    fn store_literal(
-        &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        register: &Register<N>,
-        literal: Literal<N>,
-    ) -> Result<()> {
-        self.store(stack, register, Value::Plaintext(Plaintext::from(literal)))
-    }
-}
-
-pub trait RegistersStoreCircuit<N: Network, A: circuit::Aleo<Network = N>> {
     /// Assigns the given value to the given register, assuming the register is not already assigned.
     ///
     /// # Errors
@@ -343,7 +324,7 @@ pub trait RegistersStoreCircuit<N: Network, A: circuit::Aleo<Network = N>> {
     /// This method should halt if the register is already used.
     fn store_circuit(
         &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &impl StackTrait<N>,
         register: &Register<N>,
         stack_value: circuit::Value<A>,
     ) -> Result<()>;
@@ -354,10 +335,9 @@ pub trait RegistersStoreCircuit<N: Network, A: circuit::Aleo<Network = N>> {
     /// This method should halt if the given register is a register member.
     /// This method should halt if the given register is an input register.
     /// This method should halt if the register is already used.
-    #[inline]
     fn store_literal_circuit(
         &mut self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
+        stack: &impl StackTrait<N>,
         register: &Register<N>,
         literal: circuit::Literal<A>,
     ) -> Result<()> {

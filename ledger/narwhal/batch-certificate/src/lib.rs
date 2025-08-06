@@ -16,6 +16,8 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::cast_possible_truncation)]
 
+extern crate snarkvm_console as console;
+
 mod bytes;
 mod serialize;
 mod string;
@@ -25,8 +27,8 @@ use console::{
     prelude::*,
     types::Field,
 };
-use narwhal_batch_header::BatchHeader;
-use narwhal_transmission_id::TransmissionID;
+use snarkvm_ledger_narwhal_batch_header::BatchHeader;
+use snarkvm_ledger_narwhal_transmission_id::TransmissionID;
 
 use core::hash::{Hash, Hasher};
 use indexmap::IndexSet;
@@ -161,7 +163,7 @@ pub mod test_helpers {
 
     /// Returns a sample batch certificate, sampled at random.
     pub fn sample_batch_certificate(rng: &mut TestRng) -> BatchCertificate<CurrentNetwork> {
-        sample_batch_certificate_for_round(rng.gen(), rng)
+        sample_batch_certificate_for_round(rng.r#gen(), rng)
     }
 
     /// Returns a sample batch certificate with a given round; the rest is sampled at random.
@@ -198,7 +200,7 @@ pub mod test_helpers {
     ) -> BatchCertificate<CurrentNetwork> {
         // Sample a batch header.
         let batch_header =
-            narwhal_batch_header::test_helpers::sample_batch_header_for_round_and_key_with_previous_certificate_ids(
+            snarkvm_ledger_narwhal_batch_header::test_helpers::sample_batch_header_for_round_and_key_with_previous_certificate_ids(
                 round,
                 author,
                 previous_certificate_ids,

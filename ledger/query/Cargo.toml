@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-ledger-query"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "A query for a decentralized virtual machine"
 homepage = "https://aleo.org"
@@ -14,50 +14,58 @@ keywords = [
 ]
 categories = [ "cryptography", "web-programming" ]
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 default = [ "query" ]
-async = [ "reqwest" ]
+async = [ "dep:reqwest" ]
 serial = [
-  "console/serial",
-  "ledger-store/serial",
-  "synthesizer-program/serial"
+  "snarkvm-console/serial",
+  "snarkvm-ledger-store/serial",
+  "snarkvm-synthesizer-program/serial"
 ]
 wasm = [
-  "console/wasm",
-  "ledger-store/wasm",
-  "synthesizer-program/wasm"
+  "snarkvm-console/wasm",
+  "snarkvm-ledger-store/wasm",
+  "snarkvm-synthesizer-program/wasm"
 ]
-query = [ "ledger-store", "synthesizer-program", "ureq" ]
+query = [
+  "dep:snarkvm-ledger-store",
+  "dep:snarkvm-synthesizer-program",
+  "dep:ureq",
+]
 
-[dependencies.console]
-package = "snarkvm-console"
-path = "../../console"
-version = "=3.8.0"
+[dependencies.snarkvm-console]
+workspace = true
+features = [ "default" ]
 
-[dependencies.ledger-store]
-package = "snarkvm-ledger-store"
-path = "../store"
-version = "=3.8.0"
+[dependencies.snarkvm-ledger-store]
+workspace = true
 optional = true
 
-[dependencies.synthesizer-program]
-package = "snarkvm-synthesizer-program"
-path = "../../synthesizer/program"
-version = "=3.8.0"
+[dependencies.snarkvm-synthesizer-program]
+workspace = true
 optional = true
+
+[dependencies.anyhow]
+workspace = true
 
 [dependencies.async-trait]
 version = "0.1"
 
+[dependencies.serde]
+version = "1"
+
+[dependencies.serde_json]
+version = "1"
+features = [ "preserve_order" ]
+
 [dependencies.reqwest]
-version = "0.11.20"
+version = "0.12"
 features = [ "json" ]
 optional = true
 
 [dependencies.ureq]
-version = "2.7.1"
+workspace = true
 features = [ "json" ]
-default-features = false
 optional = true

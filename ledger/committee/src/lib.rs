@@ -16,6 +16,8 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::cast_possible_truncation)]
 
+extern crate snarkvm_console as console;
+
 mod bytes;
 mod serialize;
 mod string;
@@ -29,7 +31,7 @@ use console::{
     program::{Literal, LiteralType},
     types::{Address, Field},
 };
-use ledger_narwhal_batch_header::BatchHeader;
+use snarkvm_ledger_narwhal_batch_header::BatchHeader;
 
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -98,7 +100,7 @@ impl<N: Network> Committee<N> {
         // Compute the committee ID.
         let id = Self::compute_committee_id(starting_round, &members, total_stake)?;
         #[cfg(feature = "metrics")]
-        metrics::gauge(metrics::committee::TOTAL_STAKE, total_stake as f64);
+        snarkvm_metrics::gauge(snarkvm_metrics::committee::TOTAL_STAKE, total_stake as f64);
         // Return the new committee.
         Ok(Self { id, starting_round, members, total_stake })
     }
@@ -283,13 +285,13 @@ pub mod test_helpers {
         // Sample the members.
         let mut members = IndexMap::new();
         for index in 0..4 {
-            let is_open = rng.gen();
+            let is_open = rng.r#gen();
             let commission = match index {
                 0 => 0,
                 1 => 100,
                 _ => rng.gen_range(0..=100),
             };
-            members.insert(Address::<CurrentNetwork>::new(rng.gen()), (2 * MIN_VALIDATOR_STAKE, is_open, commission));
+            members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (2 * MIN_VALIDATOR_STAKE, is_open, commission));
         }
         // Return the committee.
         Committee::<CurrentNetwork>::new(1, members).unwrap()
@@ -309,8 +311,8 @@ pub mod test_helpers {
         // Sample the members.
         let mut members = IndexMap::new();
         for _ in 0..num_members {
-            let is_open = rng.gen();
-            members.insert(Address::<CurrentNetwork>::new(rng.gen()), (2 * MIN_VALIDATOR_STAKE, is_open, 0));
+            let is_open = rng.r#gen();
+            members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (2 * MIN_VALIDATOR_STAKE, is_open, 0));
         }
         // Return the committee.
         Committee::<CurrentNetwork>::new(round, members).unwrap()
@@ -330,7 +332,7 @@ pub mod test_helpers {
         for _ in 0..num_members {
             let private_key = PrivateKey::new(rng).unwrap();
             let address = Address::try_from(private_key).unwrap();
-            let is_open = rng.gen();
+            let is_open = rng.r#gen();
             private_keys.push(private_key);
             members.insert(address, (2 * MIN_VALIDATOR_STAKE, is_open, 0));
         }
@@ -347,7 +349,7 @@ pub mod test_helpers {
         // Sample the members.
         let mut committee_members = IndexMap::new();
         for member in members {
-            let is_open = rng.gen();
+            let is_open = rng.r#gen();
             committee_members.insert(member, (2 * MIN_VALIDATOR_STAKE, is_open, 0));
         }
         // Return the committee.
@@ -360,11 +362,11 @@ pub mod test_helpers {
         // Sample the members.
         let mut members = IndexMap::new();
         // Add in the minimum and maximum staked nodes.
-        members.insert(Address::<CurrentNetwork>::new(rng.gen()), (MIN_VALIDATOR_STAKE, false, 0));
+        members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (MIN_VALIDATOR_STAKE, false, 0));
         while members.len() < num_members as usize - 1 {
             let stake = MIN_VALIDATOR_STAKE;
-            let is_open = rng.gen();
-            members.insert(Address::<CurrentNetwork>::new(rng.gen()), (stake, is_open, 0));
+            let is_open = rng.r#gen();
+            members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (stake, is_open, 0));
         }
         // Return the committee.
         Committee::<CurrentNetwork>::new(1, members).unwrap()
@@ -383,18 +385,18 @@ pub mod test_helpers {
         // Sample the members.
         let mut members = IndexMap::new();
         // Add in the minimum and maximum staked nodes.
-        members.insert(Address::<CurrentNetwork>::new(rng.gen()), (MIN_VALIDATOR_STAKE, false, 0));
+        members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (MIN_VALIDATOR_STAKE, false, 0));
         while members.len() < num_members as usize - 1 {
             loop {
                 let stake = MIN_VALIDATOR_STAKE as f64 + range * distribution.sample(rng);
                 if stake >= MIN_VALIDATOR_STAKE as f64 && stake <= MAX_STAKE as f64 {
-                    let is_open = rng.gen();
-                    members.insert(Address::<CurrentNetwork>::new(rng.gen()), (stake as u64, is_open, 0));
+                    let is_open = rng.r#gen();
+                    members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (stake as u64, is_open, 0));
                     break;
                 }
             }
         }
-        members.insert(Address::<CurrentNetwork>::new(rng.gen()), (MAX_STAKE, false, 0));
+        members.insert(Address::<CurrentNetwork>::new(rng.r#gen()), (MAX_STAKE, false, 0));
         // Return the committee.
         Committee::<CurrentNetwork>::new(1, members).unwrap()
     }

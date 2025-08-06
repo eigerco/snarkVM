@@ -13,11 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use snarkvm_utilities::{
-    FromBytes,
-    error,
-    io::{Read, Result as IoResult},
-};
+use snarkvm_utilities::{FromBytes, error};
+use std::io::{Read, Result as IoResult};
 
 /// Returns the variable length integer of the given value.
 /// <https://en.bitcoin.it/wiki/Protocol_documentation#Variable_length_integer>

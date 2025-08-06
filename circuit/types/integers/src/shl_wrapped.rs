@@ -34,7 +34,7 @@ impl<E: Environment, I: IntegerType, M: Magnitude> ShlWrapped<Integer<E, M>> for
 
             // Zero-extend `rhs` by `8`.
             let mut bits_le = rhs.bits_le[..first_upper_bit_index].to_vec();
-            bits_le.extend(core::iter::repeat(Boolean::constant(false)).take(8));
+            bits_le.extend(core::iter::repeat_n(Boolean::constant(false), 8));
 
             // Use U8 for the exponent as it costs fewer constraints.
             let rhs_as_u8 = U8 { bits_le, phantom: Default::default() };

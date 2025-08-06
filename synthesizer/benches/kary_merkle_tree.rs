@@ -16,9 +16,9 @@
 #[macro_use]
 extern crate criterion;
 
-use algorithms::snark::varuna::VarunaVersion;
-use circuit::{AleoV0, Eject, Environment, Inject, Mode, collections::kary_merkle_tree::*};
-use console::{
+use snarkvm_algorithms::snark::varuna::VarunaVersion;
+use snarkvm_circuit::{AleoV0, Eject, Environment, Inject, Mode, collections::kary_merkle_tree::*};
+use snarkvm_console::{
     algorithms::Sha3_256,
     collections::kary_merkle_tree::KaryMerkleTree,
     network::{
@@ -27,7 +27,7 @@ use console::{
     },
     types::Field,
 };
-use synthesizer_snark::{ProvingKey, UniversalSRS};
+use snarkvm_synthesizer_snark::{ProvingKey, UniversalSRS};
 
 use criterion::Criterion;
 
@@ -36,8 +36,8 @@ type CurrentAleo = AleoV0;
 
 type NativePathHasher = Sha3_256;
 type NativeLeafHasher = Sha3_256;
-type CircuitPathHasher = circuit::Sha3_256<AleoV0>;
-type CircuitLeafHasher = circuit::Sha3_256<AleoV0>;
+type CircuitPathHasher = snarkvm_circuit::Sha3_256<AleoV0>;
+type CircuitLeafHasher = snarkvm_circuit::Sha3_256<AleoV0>;
 
 const DEPTH: u8 = 8;
 const ARITY: u8 = 8;
@@ -76,8 +76,10 @@ fn batch_prove(c: &mut Criterion) {
     CurrentAleo::reset();
 
     // Initialize the Merkle path circuit.
-    let path =
-        KaryMerklePath::<CurrentAleo, circuit::Sha3_256<CurrentAleo>, DEPTH, ARITY>::new(Mode::Private, merkle_path);
+    let path = KaryMerklePath::<CurrentAleo, snarkvm_circuit::Sha3_256<CurrentAleo>, DEPTH, ARITY>::new(
+        Mode::Private,
+        merkle_path,
+    );
     // Initialize the Merkle root.
     let root = <CircuitPathHasher as PathHash<CurrentAleo>>::Hash::new(Mode::Private, *merkle_tree.root());
     // Initialize the Merkle leaf.

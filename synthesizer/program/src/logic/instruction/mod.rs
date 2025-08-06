@@ -25,17 +25,7 @@ pub use operation::*;
 mod bytes;
 mod parse;
 
-use crate::traits::{
-    InstructionTrait,
-    RegistersLoad,
-    RegistersLoadCircuit,
-    RegistersSigner,
-    RegistersSignerCircuit,
-    RegistersStore,
-    RegistersStoreCircuit,
-    StackMatches,
-    StackProgram,
-};
+use crate::{RegistersCircuit, RegistersSigner, RegistersTrait, StackTrait};
 use console::{
     network::Network,
     prelude::{
@@ -372,29 +362,14 @@ macro_rules! opcodes {
     ($_object:expr, |$_reader:ident| $_operation:block, { $( $variant:ident, )+ }) => { [$( $variant::<N>::opcode() ),+] }
 }
 
-impl<N: Network> InstructionTrait<N> for Instruction<N> {
-    /// Returns the destination registers of the instruction.
-    #[inline]
-    fn destinations(&self) -> Vec<Register<N>> {
-        instruction!(self, |instruction| instruction.destinations())
-    }
-
-    /// Returns `true` if the given name is a reserved opcode.
-    #[inline]
-    fn is_reserved_opcode(name: &str) -> bool {
-        // Check if the given name matches any opcode (in its entirety; including past the first '.' if it exists).
-        Instruction::<N>::OPCODES.iter().any(|opcode| **opcode == name)
-    }
-}
-
 impl<N: Network> Instruction<N> {
     /// The list of all instruction opcodes.
     pub const OPCODES: &'static [Opcode] = &instruction!(opcodes, Instruction, |None| {});
 
-    /// Returns the opcode of the instruction.
-    #[inline]
-    pub const fn opcode(&self) -> Opcode {
-        instruction!(self, |InstructionMember| InstructionMember::<N>::opcode())
+    /// Returns `true` if the given name is a reserved opcode.
+    pub fn is_reserved_opcode(name: &str) -> bool {
+        // Check if the given name matches any opcode (in its entirety; including past the first '.' if it exists).
+        Instruction::<N>::OPCODES.iter().any(|opcode| **opcode == name)
     }
 
     /// Returns the operands of the instruction.
@@ -403,13 +378,30 @@ impl<N: Network> Instruction<N> {
         instruction!(self, |instruction| instruction.operands())
     }
 
+    /// Returns the destination registers of the instruction.
+    #[inline]
+    pub fn destinations(&self) -> Vec<Register<N>> {
+        instruction!(self, |instruction| instruction.destinations())
+    }
+
+    /// Returns the `CallOperator` if the instruction is a `call` instruction, otherwise `None`.
+    #[inline]
+    pub fn call_operator(&self) -> Option<&CallOperator<N>> {
+        match self {
+            Self::Call(call) => Some(call.operator()),
+            _ => None,
+        }
+    }
+
+    /// Returns the opcode of the instruction.
+    #[inline]
+    pub const fn opcode(&self) -> Opcode {
+        instruction!(self, |InstructionMember| InstructionMember::<N>::opcode())
+    }
+
     /// Evaluates the instruction.
     #[inline]
-    pub fn evaluate(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersSigner<N> + RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn evaluate(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersSigner<N>) -> Result<()> {
         instruction!(self, |instruction| instruction.evaluate(stack, registers))
     }
 
@@ -417,19 +409,15 @@ impl<N: Network> Instruction<N> {
     #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersSignerCircuit<N, A> + RegistersLoadCircuit<N, A> + RegistersStoreCircuit<N, A>),
+        stack: &impl StackTrait<N>,
+        registers: &mut impl RegistersCircuit<N, A>,
     ) -> Result<()> {
         instruction!(self, |instruction| instruction.execute::<A>(stack, registers))
     }
 
     /// Finalizes the instruction.
     #[inline]
-    pub fn finalize(
-        &self,
-        stack: &(impl StackMatches<N> + StackProgram<N>),
-        registers: &mut (impl RegistersLoad<N> + RegistersStore<N>),
-    ) -> Result<()> {
+    pub fn finalize(&self, stack: &impl StackTrait<N>, registers: &mut impl RegistersTrait<N>) -> Result<()> {
         instruction!(self, |instruction| instruction.finalize(stack, registers))
     }
 
@@ -437,7 +425,7 @@ impl<N: Network> Instruction<N> {
     #[inline]
     pub fn output_types(
         &self,
-        stack: &impl StackProgram<N>,
+        stack: &impl StackTrait<N>,
         input_types: &[RegisterType<N>],
     ) -> Result<Vec<RegisterType<N>>> {
         instruction!(self, |instruction| instruction.output_types(stack, input_types))

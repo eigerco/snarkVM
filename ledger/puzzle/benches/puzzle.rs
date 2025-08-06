@@ -18,7 +18,7 @@
 #[macro_use]
 extern crate criterion;
 
-use console::{
+use snarkvm_console::{
     account::*,
     network::{MainnetV0, Network},
 };
@@ -42,7 +42,7 @@ fn puzzle_prove(c: &mut Criterion) {
     let puzzle = Puzzle::<MainnetV0>::new::<MerklePuzzle<MainnetV0>>();
 
     // Initialize an epoch hash.
-    let epoch_hash = rng.gen();
+    let epoch_hash = rng.r#gen();
 
     c.bench_function("Puzzle::prove", |b| {
         let (address, counter) = sample_address_and_counter(rng);
@@ -57,7 +57,7 @@ fn puzzle_verify(c: &mut Criterion) {
     let puzzle = Puzzle::<MainnetV0>::new::<MerklePuzzle<MainnetV0>>();
 
     // Initialize an epoch hash.
-    let epoch_hash = rng.gen();
+    let epoch_hash = rng.r#gen();
 
     for batch_size in [1, 2, <MainnetV0 as Network>::MAX_SOLUTIONS] {
         let solutions = (0..batch_size)

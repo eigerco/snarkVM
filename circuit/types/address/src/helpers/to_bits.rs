@@ -43,7 +43,7 @@ impl<E: Environment> ToBits for &Address<E> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use snarkvm_circuit_environment::Circuit;

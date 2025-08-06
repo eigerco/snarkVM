@@ -13,14 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod command;
-pub use command::*;
-
 mod finalize_store;
 pub use finalize_store::*;
-
-mod instruction;
-pub use instruction::*;
 
 mod stack_and_registers;
 pub use stack_and_registers::*;

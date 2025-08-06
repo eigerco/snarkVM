@@ -119,7 +119,7 @@ mod tests {
         match second.is_zero() {
             true => match mode_b.is_constant() {
                 true => {
-                    let result = std::panic::catch_unwind(|| Field::div(a.clone(), b));
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Field::div(a.clone(), b)));
                     assert!(result.is_err());
                 }
                 false => {
@@ -154,7 +154,8 @@ mod tests {
         match second.is_zero() {
             true => match mode_b.is_constant() {
                 true => {
-                    let result = std::panic::catch_unwind(|| Field::div_assign(&mut a.clone(), b));
+                    let result =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Field::div_assign(&mut a.clone(), b)));
                     assert!(result.is_err());
                 }
                 false => {

@@ -16,8 +16,8 @@
 #[macro_use]
 extern crate criterion;
 
-use console::{network::MainnetV0, prelude::*};
-use ledger_block::Block;
+use snarkvm_console::{network::MainnetV0, prelude::*};
+use snarkvm_ledger_block::Block;
 
 use criterion::Criterion;
 

@@ -20,7 +20,6 @@ mod execute;
 mod is_build_required;
 mod run;
 
-pub use build::{BuildRequest, BuildResponse};
 pub use deploy::{DeployRequest, DeployResponse};
 
 use crate::{
@@ -38,13 +37,12 @@ use crate::{
     },
     prelude::{Deserialize, Deserializer, Serialize, SerializeStruct, Serializer},
     synthesizer::{
-        process::{Assignments, CallMetrics, CallStack, Process, StackExecute},
-        program::{CallOperator, Instruction, Program, StackProgram},
-        snark::{ProvingKey, VerifyingKey},
+        process::{Assignments, CallMetrics, CallStack, Process},
+        program::{CallOperator, Instruction, Program, StackTrait},
     },
 };
 
-use anyhow::{Error, Result, bail, ensure};
+use anyhow::{Result, bail, ensure};
 use core::str::FromStr;
 use rand::{CryptoRng, Rng};
 use std::path::{Path, PathBuf};
@@ -155,29 +153,50 @@ impl<N: Network> Package<N> {
 
     /// Returns a new process for the package.
     pub fn get_process(&self) -> Result<Process<N>> {
-        // Create the process.
+        // Load the default process.
         let mut process = Process::load()?;
-
-        // Prepare the imports directory.
+        // Get the imported programs.
         let imports_directory = self.imports_directory();
-
-        // Initialize the 'credits.aleo' program ID.
-        let credits_program_id = ProgramID::<N>::from_str("credits.aleo")?;
-
-        // Add all import programs (in order) to the process.
-        self.program().imports().keys().try_for_each(|program_id| {
-            // Don't add `credits.aleo` as the process is already loaded with it.
-            if program_id != &credits_program_id {
+        let mut programs = self
+            .program()
+            .imports()
+            .keys()
+            .map(|program_id| {
+                // TODO (howardwu): Add the following checks:
+                //  1) the imported program ID exists *on-chain* (for the given network)
+                //  2) the AVM bytecode of the imported program matches the AVM bytecode of the program *on-chain*
+                //  3) consensus performs the exact same checks (in `verify_deployment`)
                 // Open the Aleo program file.
                 let import_program_file = AleoFile::open(&imports_directory, program_id, false)?;
-                // Add the import program.
-                process.add_program(import_program_file.program())?;
-            }
-            Ok::<_, Error>(())
-        })?;
+                // Get the program.
+                Ok(import_program_file.program().clone())
+            })
+            .collect::<Result<Vec<_>>>()?;
+        // Add the main program.
+        programs.push(self.program().clone());
 
-        // Add the program to the process.
-        process.add_program(self.program())?;
+        // Get the editions for the programs, if specified in the manifest.
+        let programs_and_editions = programs
+            .into_iter()
+            .map(|program| {
+                // Get the program ID.
+                let program_id = program.id();
+                // Get the edition, if specified.
+                if let Some(edition) = self.manifest_file.editions().get(program_id) {
+                    (program, *edition)
+                } else {
+                    #[cfg(feature = "aleo-cli")]
+                    println!(
+                        " Could not find an edition for '{}' in the manifest, using edition 0...\n",
+                        program_id.to_string().bold()
+                    );
+                    (program, 0)
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Load the programs.
+        process.add_programs_with_editions(&programs_and_editions)?;
 
         Ok(process)
     }
@@ -193,7 +212,7 @@ pub(crate) mod test_helpers {
     type CurrentNetwork = MainnetV0;
 
     fn temp_dir() -> PathBuf {
-        tempfile::tempdir().expect("Failed to open temporary directory").into_path()
+        tempfile::tempdir().expect("Failed to open temporary directory").keep()
     }
 
     /// Samples a (temporary) package containing a `token.aleo` program.
@@ -550,7 +569,7 @@ function bar:
         // Ensure the build directory does *not* exist.
         assert!(!package.build_directory().exists());
         // Build the package.
-        package.build::<CurrentAleo>(None).unwrap();
+        package.build::<CurrentAleo>().unwrap();
         // Ensure the build directory exists.
         assert!(package.build_directory().exists());
 

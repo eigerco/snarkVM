@@ -13,7 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    ffi::OsStr,
+    fs::{self, File},
+    io::Read,
+    path::Path,
+};
 
 use walkdir::WalkDir;
 
@@ -22,6 +27,110 @@ const EXPECTED_LICENSE_TEXT: &[u8] = include_bytes!(".license_header");
 
 // The following directories will be excluded from the license scan.
 const DIRS_TO_SKIP: [&str; 5] = [".cargo", ".circleci", ".git", ".github", "target"];
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImportOfInterest {
+    Locktick,
+    ParkingLot,
+    Tokio,
+}
+
+fn check_locktick_imports<P: AsRef<Path>>(path: P) {
+    let mut iter = WalkDir::new(path).into_iter();
+    while let Some(entry) = iter.next() {
+        let entry = entry.unwrap();
+        let entry_type = entry.file_type();
+
+        // Skip the specified directories.
+        if entry_type.is_dir() && DIRS_TO_SKIP.contains(&entry.file_name().to_str().unwrap_or("")) {
+            iter.skip_current_dir();
+
+            continue;
+        }
+
+        let path = entry.path();
+
+        // Ignore non-rs
+        if path.extension() != Some(OsStr::new("rs")) {
+            continue;
+        }
+
+        // Read the entire file.
+        let file = fs::read_to_string(path).unwrap();
+
+        // Prepare a filtered line iterator.
+        let lines = file
+            .lines()
+            .filter(|l| !l.is_empty()) // Ignore empty lines.
+            .skip_while(|l| !l.starts_with("use")) // Skip the license etc.
+            .take_while(|l| { // Process the section containing import statements.
+                l.starts_with("use")
+                    || l.starts_with("#[cfg")
+                    || l.starts_with("//")
+                    || *l == "};"
+                    || l.starts_with(|c: char| c.is_ascii_whitespace())
+            });
+
+        // The currently processed import of interest.
+        let mut import_of_interest: Option<ImportOfInterest> = None;
+        // This value not being zero at the end of the imports suggests a missing locktick import.
+        let mut lock_balance: i8 = 0;
+
+        // Process the filtered lines.
+        for line in lines {
+            // Check if this is a lock-related import.
+            if import_of_interest.is_none() {
+                if line.starts_with("use locktick::") {
+                    import_of_interest = Some(ImportOfInterest::Locktick);
+                } else if line.starts_with("use parking_lot::") {
+                    import_of_interest = Some(ImportOfInterest::ParkingLot);
+                } else if line.starts_with("use tokio::") {
+                    import_of_interest = Some(ImportOfInterest::Tokio);
+                }
+            }
+
+            // Skip irrelevant imports.
+            let Some(ioi) = import_of_interest else {
+                continue;
+            };
+
+            // Modify the lock balance based on the type of the relevant import.
+            if [ImportOfInterest::ParkingLot, ImportOfInterest::Tokio].contains(&ioi) {
+                if line.contains("Mutex") {
+                    lock_balance += 1;
+                }
+                if line.contains("RwLock") {
+                    lock_balance += 1;
+                }
+            } else if ioi == ImportOfInterest::Locktick {
+                // Use `matches` instead of just `contains` here, as more than a single
+                // lock type entry is possible in a locktick import.
+                for _hit in line.matches("Mutex") {
+                    lock_balance -= 1;
+                }
+                for _hit in line.matches("RwLock") {
+                    lock_balance -= 1;
+                }
+                // A correction in case of the `use tokio::Mutex as TMutex` convention.
+                if line.contains("TMutex") {
+                    lock_balance += 1;
+                }
+            }
+
+            // Register the end of an import statement.
+            if line.ends_with(";") {
+                import_of_interest = None;
+            }
+        }
+
+        // If the file has a lock import "imbalance", print it out and increment the counter.
+        assert!(
+            lock_balance == 0,
+            "The locks in \"{}\" don't seem to have `locktick` counterparts!",
+            entry.path().display()
+        );
+    }
+}
 
 fn check_file_licenses<P: AsRef<Path>>(path: P) {
     let path = path.as_ref();
@@ -57,4 +166,6 @@ fn check_file_licenses<P: AsRef<Path>>(path: P) {
 fn main() {
     // Check licenses in the current folder.
     check_file_licenses(".");
+    // Ensure that lock imports have locktick counterparts.
+    check_locktick_imports(".");
 }

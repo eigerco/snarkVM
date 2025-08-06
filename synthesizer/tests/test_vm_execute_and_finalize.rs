@@ -16,13 +16,13 @@
 mod utilities;
 
 use aleo_std::StorageMode;
-use console::{
+use snarkvm_console::{
     account::{PrivateKey, ViewKey},
     network::prelude::*,
     program::{Entry, Identifier, Literal, Plaintext, ProgramID, Record, U64, Value},
     types::{Boolean, Field},
 };
-use ledger_block::{
+use snarkvm_ledger_block::{
     Block,
     ConfirmedTransaction,
     Header,
@@ -32,20 +32,20 @@ use ledger_block::{
     Transactions,
     Transition,
 };
-use ledger_store::{ConsensusStorage, ConsensusStore};
+use snarkvm_ledger_store::{ConsensusStorage, ConsensusStore};
 use snarkvm_synthesizer::{VM, program::FinalizeOperation};
-use synthesizer_program::FinalizeGlobalState;
+use snarkvm_synthesizer_program::FinalizeGlobalState;
 
 use anyhow::Result;
-use console::account::Address;
 use indexmap::IndexMap;
 use rayon::prelude::*;
+use snarkvm_console::account::Address;
 use utilities::*;
 
 #[cfg(not(feature = "rocks"))]
-type LedgerType<N> = ledger_store::helpers::memory::ConsensusMemory<N>;
+type LedgerType = snarkvm_ledger_store::helpers::memory::ConsensusMemory<CurrentNetwork>;
 #[cfg(feature = "rocks")]
-type LedgerType<N> = ledger_store::helpers::rocksdb::ConsensusDB<N>;
+type LedgerType = snarkvm_ledger_store::helpers::rocksdb::ConsensusDB<CurrentNetwork>;
 
 #[test]
 fn test_vm_execute_and_finalize() {
@@ -76,7 +76,7 @@ fn run_test(test: &ProgramTest) -> serde_yaml::Mapping {
     let genesis_private_key = PrivateKey::<CurrentNetwork>::new(rng).unwrap();
 
     // Initialize the VM.
-    let (vm, _) = initialize_vm(&genesis_private_key, rng);
+    let (vm, _) = initialize_vm(&genesis_private_key, test.start_height(), rng);
 
     // Fund the additional keys.
     for key in test.keys() {
@@ -370,10 +370,11 @@ fn run_test(test: &ProgramTest) -> serde_yaml::Mapping {
 #[allow(clippy::type_complexity)]
 fn initialize_vm<R: Rng + CryptoRng>(
     private_key: &PrivateKey<CurrentNetwork>,
+    height: u32,
     rng: &mut R,
-) -> (VM<CurrentNetwork, LedgerType<CurrentNetwork>>, Vec<Record<CurrentNetwork, Plaintext<CurrentNetwork>>>) {
+) -> (VM<CurrentNetwork, LedgerType>, Vec<Record<CurrentNetwork, Plaintext<CurrentNetwork>>>) {
     // Initialize a VM.
-    let vm: VM<CurrentNetwork, LedgerType<CurrentNetwork>> =
+    let vm: VM<CurrentNetwork, LedgerType> =
         VM::from(ConsensusStore::open(StorageMode::new_test(None)).unwrap()).unwrap();
 
     // Initialize the genesis block.
@@ -386,6 +387,36 @@ fn initialize_vm<R: Rng + CryptoRng>(
 
     // Add the genesis block to the VM.
     vm.add_next_block(&genesis).unwrap();
+
+    // If the desired height is greater than zero, add additional blocks to the VM.
+    for _ in 0..height {
+        let time_since_last_block = CurrentNetwork::BLOCK_TIME as i64;
+        let (ratifications, transactions, aborted_transaction_ids, ratified_finalize_operations) = vm
+            .speculate(
+                construct_finalize_global_state(&vm),
+                time_since_last_block,
+                Some(0u64),
+                vec![],
+                &None.into(),
+                [].into_iter(),
+                rng,
+            )
+            .unwrap();
+        assert!(aborted_transaction_ids.is_empty());
+
+        let block = construct_next_block(
+            &vm,
+            time_since_last_block,
+            private_key,
+            ratifications,
+            transactions,
+            aborted_transaction_ids,
+            ratified_finalize_operations,
+            rng,
+        )
+        .unwrap();
+        vm.add_next_block(&block).unwrap();
+    }
 
     (vm, records)
 }
@@ -407,7 +438,7 @@ fn construct_fee_records<C: ConsensusStorage<CurrentNetwork>, R: Rng + CryptoRng
         }
     };
 
-    println!("Splitting the initial fee record into {} fee records.", num_fee_records);
+    println!("Splitting the initial fee record into {num_fee_records} fee records.");
 
     // Construct fee records for the tests.
     let mut fee_records = records

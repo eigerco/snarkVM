@@ -25,8 +25,8 @@ use console::{
     prelude::{Itertools, ToBits as TBits, Uniform, Zero},
     program::{Field, Identifier, Literal, LiteralType, Value},
 };
-use snarkvm_synthesizer_process::{CallStack, Process, Registers, Stack, StackProgramTypes};
-use snarkvm_synthesizer_program::{Instruction, Program, RegistersStoreCircuit, StackProgram};
+use snarkvm_synthesizer_process::{CallStack, Process, Registers, Stack};
+use snarkvm_synthesizer_program::{Instruction, Program, RegistersCircuit as _, StackTrait};
 
 use aleo_std::prelude::{finish, lap, timer};
 use anyhow::{Result, anyhow, bail, ensure};
@@ -158,7 +158,7 @@ mod tests {
         let mut rng = TestRng::default();
 
         // Initialize a random epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
         // Initialize a new epoch program.
         let epoch_program_0 = EpochProgram::<CurrentNetwork>::new(epoch_hash).unwrap();
         // Initialize a new epoch program.
@@ -172,7 +172,7 @@ mod tests {
         let mut rng = TestRng::default();
 
         // Initialize a random epoch hash.
-        let epoch_hash = rng.gen();
+        let epoch_hash = rng.r#gen();
         // Initialize a new epoch program.
         let epoch_program = EpochProgram::<CurrentNetwork>::new(epoch_hash).unwrap();
         // Retrieve the instructions.

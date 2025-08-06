@@ -1,80 +1,83 @@
 [package]
 name = "snarkvm-console-network"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Network console library for a decentralized virtual machine"
 homepage = "https://aleo.org"
 repository = "https://github.com/ProvableHQ/snarkVM"
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [features]
+<<<<<<< HEAD
 default = ["snarkvm-algorithms/polycommit_full"]
 wasm = ["snarkvm-algorithms/polycommit_wasm", "snarkvm-parameters/wasm"]
 test = []
 test_targets = []
+=======
+filesystem = [ "snarkvm-parameters/filesystem" ]
+wasm = [
+  "snarkvm-parameters/wasm"
+]
+test = [ ]
+test_targets = [ ]
+>>>>>>> upstream/staging
 test_consensus_heights = [ ]
 cosmwasm = ["snarkvm-parameters/cosmwasm", "snarkvm-utilities/cosmwasm"]
 
 [dependencies.snarkvm-algorithms]
+<<<<<<< HEAD
 path = "../../algorithms"
 version = "=3.8.0"
 default-features = false
 features = ["snark"]
+=======
+workspace = true
+>>>>>>> upstream/staging
 
 [dependencies.snarkvm-console-algorithms]
-path = "../algorithms"
-version = "=3.8.0"
+workspace = true
 
 [dependencies.snarkvm-console-collections]
-path = "../collections"
-version = "=3.8.0"
+workspace = true
 
 [dependencies.snarkvm-console-network-environment]
-path = "./environment"
-version = "=3.8.0"
+workspace = true
 
 [dependencies.snarkvm-console-types]
+<<<<<<< HEAD
 path = "../types"
 version = "=3.8.0"
 default-features = false
 features = ["field", "group", "scalar"]
+=======
+workspace = true
+features = [ "field", "group", "scalar" ]
+>>>>>>> upstream/staging
 
 [dependencies.snarkvm-curves]
-path = "../../curves"
-version = "=3.8.0"
-default-features = false
-
-[dependencies.snarkvm-fields]
-path = "../../fields"
-version = "=3.8.0"
-default-features = false
+workspace = true
 
 [dependencies.snarkvm-parameters]
-path = "../../parameters"
-version = "=3.8.0"
-
-[dependencies.snarkvm-utilities]
-path = "../../utilities"
-version = "=3.8.0"
+workspace = true
 
 [dependencies.anyhow]
-version = "1.0.73"
+workspace = true
+
+[dependencies.enum-iterator]
+version = "2.1"
 
 [dependencies.indexmap]
-version = "2"
-
-[dependencies.itertools]
-version = "0.11.0"
+workspace = true
 
 [dependencies.lazy_static]
-version = "1.4"
-
-[dependencies.once_cell]
-version = "1.18"
-
-[dependencies.paste]
-version = "1"
+workspace = true
 
 [dependencies.serde]
-version = "1.0"
+workspace = true
+
+[dependencies.paste]
+workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["paste"]

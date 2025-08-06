@@ -25,7 +25,7 @@ impl<N: Network> Serialize for GraphKey<N> {
 impl<'de, N: Network> Deserialize<'de> for GraphKey<N> {
     /// Deserializes an account graph key from bytes.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        FromBytesDeserializer::<Self>::deserialize(deserializer, "graph key", (N::Field::size_in_bits() + 7) / 8)
+        FromBytesDeserializer::<Self>::deserialize(deserializer, "graph key", N::Field::size_in_bits().div_ceil(8))
     }
 }
 

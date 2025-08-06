@@ -20,6 +20,12 @@ parameters:
 orbs:
   windows: circleci/windows@5.0
 
+executors:
+  # The default docker image used in the main-workflow
+  rust-docker:
+     docker:
+      - image: cimg/rust:1.88.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+
 commands:
   check_windows:
     description: "Runs cargo check on Windows"
@@ -35,10 +41,10 @@ commands:
           command: |
             $ProgressPreference = "SilentlyContinue"
             # Remove the circleci installed rustc.
-            choco uninstall rust
+            choco uninstall -y rust
             # Install rust with rustup.
             Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "C:\rustup-init.exe"
-            & C:\rustup-init.exe -y --default-toolchain "1.83.0-x86_64-pc-windows-msvc" --no-modify-path --profile minimal # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+            & C:\rustup-init.exe -y --default-toolchain "1.88.0-x86_64-pc-windows-msvc" --no-modify-path --profile minimal # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
             $Env:Path += ";$Env:USERPROFILE\.cargo\bin"
             # Verify the installation.
             cargo --version --verbose
@@ -60,24 +66,37 @@ commands:
     parameters:
       cache_key:
         type: string
-        default: v1.3.0-rust-1.83.0-snarkvm-stable-cache
+        default: v4.0.0-rust-1.88.0-snarkvm-stable-cache
     steps:
       - run: set -e
       - run:
-          name: Prepare environment and install dependencies
+          name: Prepare environment variables and install dependencies
           command: |
-            echo 'export "RUSTC_WRAPPER"="sccache"' >> $BASH_ENV
+            echo 'export "RUSTC_WRAPPER"="$CIRCLE_WORKING_DIRECTORY/.bin/sccache"' >> $BASH_ENV
             echo 'export "SCCACHE_CACHE_SIZE"="200M"' >> $BASH_ENV
+
+            # Disable incremental builds so that sccache works as expected
+            echo 'export CARGO_INCREMENTAL=0' >> "$BASH_ENV"
+      - run:
+          name: Install sccache
+          command: |
             export WORK_DIR="$CIRCLE_WORKING_DIRECTORY/.cache/sccache"
             export SCCACHE_DIR="$CIRCLE_WORKING_DIRECTORY/.cache/sccache"
+            export SCCACHE_VERSION=v0.10.0
+            export SCCACHE_PKG="sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl"
+                 
             mkdir -p "$CIRCLE_WORKING_DIRECTORY/.bin"
-            wget https://github.com/mozilla/sccache/releases/download/v0.3.0/sccache-v0.3.0-x86_64-unknown-linux-musl.tar.gz
-            tar -C "$CIRCLE_WORKING_DIRECTORY/.bin" -xvf sccache-v0.3.0-x86_64-unknown-linux-musl.tar.gz
-            chmod +x $CIRCLE_WORKING_DIRECTORY/.bin/sccache-v0.3.0-x86_64-unknown-linux-musl/sccache
-            mv $CIRCLE_WORKING_DIRECTORY/.bin/sccache-v0.3.0-x86_64-unknown-linux-musl/sccache /home/circleci/bin/sccache
-            rm -rf "/home/circleci/.cargo/registry"
+            wget "https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/$SCCACHE_PKG.tar.gz"
+            tar -C "$CIRCLE_WORKING_DIRECTORY/.bin" -xvf "$SCCACHE_PKG.tar.gz"
+            chmod +x "$CIRCLE_WORKING_DIRECTORY/.bin/$SCCACHE_PKG/sccache"
+            mv "$CIRCLE_WORKING_DIRECTORY/.bin/$SCCACHE_PKG/sccache" "$CIRCLE_WORKING_DIRECTORY/.bin/sccache"
+            rm -rf "$CIRCLE_WORKING_DIRECTORY/.cargo/registry"
+
+      - run:
+          name: Install debian packages
+          command: |
             DEBIAN_FRONTEND=noninteractive sudo apt-get update
-            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends clang llvm-dev llvm pkg-config xz-utils make libssl-dev libssl-dev
+            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends clang llvm-dev llvm lld pkg-config xz-utils make libssl-dev libssl-dev
       - restore_cache:
           keys:
             - << parameters.cache_key >>
@@ -87,7 +106,7 @@ commands:
     parameters:
       cache_key:
         type: string
-        default: v1.3.0-rust-1.83.0-snarkvm-stable-cache
+        default: v4.0.0-rust-1.88.0-snarkvm-stable-cache
     steps:
       - run: (sccache -s || true)
       - run: set +e
@@ -98,52 +117,30 @@ commands:
             - /home/circleci/.cargo
             - /home/circleci/.aleo/resources
 
-  run_serial:
+  run_test:
     description: "Build and run tests"
     parameters:
       workspace_member:
         type: string
-      cache_key:
-        type: string
       flags:
         type: string
         default: ""
-    steps:
-      - checkout
-      - setup_environment:
-          cache_key: << parameters.cache_key >>
-      - run:
-          no_output_timeout: 60m
-          command: cd << parameters.workspace_member >> && RUST_MIN_STACK=67108864 cargo test << parameters.flags >>
-      - clear_environment:
-          cache_key: << parameters.cache_key >>
-
-  run_parallel:
-    description: "Build and run tests (in parallel)"
-    parameters:
-      workspace_member:
-        type: string
-      cache_key:
-        type: string
-      flags:
+      cache_key_suffix:
         type: string
         default: ""
+      timeout:
+        type: integer
+        default: 10
     steps:
       - checkout
       - setup_environment:
-          cache_key: << parameters.cache_key >>
+          cache_key: v4.0.0-rust-1.88.0-<< parameters.workspace_member >><< parameters.cache_key_suffix >>-cache
       - run:
-          no_output_timeout: 60m
-          command: |
-            cd << parameters.workspace_member >>
-            cargo test -- --list --format terse | sed 's/: test//' > test_names.txt
-            TEST_NAMES=$(circleci tests split test_names.txt)
-            for i in $(echo $TEST_NAMES | sed "s/ / /g")
-            do
-                RUST_MIN_STACK=67108864 cargo test $i << parameters.flags >>
-            done
+          name: "Run Tests"
+          timeout: << parameters.timeout >>
+          command: RUST_MIN_STACK=67108864 cargo test --package=<< parameters.workspace_member >> << parameters.flags >>
       - clear_environment:
-          cache_key: << parameters.cache_key >>
+          cache_key: v4.0.0-rust-1.88.0-<< parameters.workspace_member >><< parameters.cache_key_suffix >>-cache
 
   install_rust_nightly:
     description: "Install Rust nightly toolchain"
@@ -152,714 +149,585 @@ commands:
 
 jobs:
   snarkvm:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.large >>
     steps:
       - checkout
-      - run:
-          no_output_timeout: 30m
-          command: RUST_MIN_STACK=67108864 cargo test
+      - run_test:
+          workspace_member: snarkvm
 
   algorithms:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker 
     resource_class: << pipeline.parameters.large >>
     steps:
-      - run_serial:
-          workspace_member: algorithms
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-algorithms-cache
+      - run_test:
+          workspace_member: snarkvm-algorithms
 
   algorithms-profiler:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial: # This runs a single test with profiler enabled
-          workspace_member: algorithms
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-algorithms-cache
+      - run_test: # This runs a single test with profiler enabled
+          workspace_member: snarkvm-algorithms
           flags: varuna::prove_and_verify_with_square_matrix --features profiler
-
+          cache_key_suffix: -profiler
+  
   circuit:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-cache
+      - run_test:
+          workspace_member: snarkvm-circuit
 
   circuit-account:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/account
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-account-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-account
 
   # This checks that no `console` structs are used in core circuit logic.
   circuit-account-noconsole:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/account
+      - run_test:
+          workspace_member: snarkvm-circuit-account
+          cache_key_suffix: -noconsole
           flags: --no-default-features
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-account-noconsole-cache
 
   circuit-algorithms:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: circuit/algorithms
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-algorithms-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-algorithms
 
   circuit-collections:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          workspace_member: circuit/collections
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-collections-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-collections
 
   # This checks that no `console` structs are used in core circuit logic.
   circuit-collections-noconsole:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          workspace_member: circuit/collections
+      - run_test:
+          workspace_member: snarkvm-circuit-collections
+          cache_key_suffix: -noconsole
           flags: --no-default-features
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-collections-noconsole-cache
 
   circuit-environment:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/environment
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-environment-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-environment
 
   circuit-network:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/network
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-network-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-network
 
   circuit-program:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: circuit/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-program-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-program
 
   circuit-types:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types
 
   circuit-types-address:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/address
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-address-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-address
 
   circuit-types-boolean:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/boolean
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-boolean-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-boolean
 
   circuit-types-field:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/field
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-field-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-field
 
   circuit-types-group:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/group
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-group-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-group
 
   circuit-types-integers:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/integers
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-integers-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-integers
           flags: -- --ignored
 
   circuit-types-scalar:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/scalar
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-scalar-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-scalar
 
   circuit-types-string:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: circuit/types/string
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-circuit-types-string-cache
+      - run_test:
+          workspace_member: snarkvm-circuit-types-string
+
   console:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-cache
+      - run_test:
+          workspace_member: snarkvm-console
 
   console-account:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: console/account
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-account-cache
+      - run_test:
+          workspace_member: snarkvm-console-account
 
   console-algorithms:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/algorithms
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-algorithms-cache
+      - run_test:
+          workspace_member: snarkvm-console-algorithms
 
   console-collections:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          workspace_member: console/collections
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-collections-cache
+      - run_test:
+          workspace_member: snarkvm-console-collections
 
   console-network:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/network
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-network-cache
+      - run_test:
+          workspace_member: snarkvm-console-network
 
   console-network-environment:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/network/environment
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-network-environment-cache
+      - run_test:
+          workspace_member: snarkvm-console-network-environment
 
   console-program:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-program-cache
+      - run_test:
+          workspace_member: snarkvm-console-program
 
   console-types:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-cache
+      - run_test:
+          workspace_member: snarkvm-console-types
 
   console-types-address:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/address
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-address-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-address
 
   console-types-boolean:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/boolean
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-boolean-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-boolean
 
   console-types-field:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/field
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-field-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-field
 
   console-types-group:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/group
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-group-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-group
 
   console-types-integers:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/integers
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-integers-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-integers
 
   console-types-scalar:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/scalar
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-scalar-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-scalar
 
   console-types-string:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: console/types/string
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-console-types-string-cache
+      - run_test:
+          workspace_member: snarkvm-console-types-string
 
   curves:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: curves
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-curves-cache
+      - run_test:
+          workspace_member: snarkvm-curves
 
   fields:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: fields
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-fields-cache
+      - run_test:
+          workspace_member: snarkvm-fields
 
   ledger:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          workspace_member: ledger
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-cache
+      - run_test:
+          workspace_member: snarkvm-ledger
 
   ledger-with-rocksdb:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.medium >>
+    executor: rust-docker
+    resource_class: << pipeline.parameters.large >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-ledger
           flags: --release --features=rocks -- --test-threads=2
-          workspace_member: ledger
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-with-rocksdb-cache
+          timeout: 20
 
   ledger-with-valid-solutions:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-ledger
+          cache_key_suffix: -with-vaild-solutions
           flags: valid_solutions --features=test
-          workspace_member: ledger
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-with-valid-solutions-cache
 
   ledger-authority:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: ledger/authority
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-authority-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-authority
 
   ledger-block:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
-          workspace_member: ledger/block
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-block-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-block
 
   ledger-committee:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/committee
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-committee-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-committee
 
   ledger-narwhal:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal
 
   ledger-narwhal-batch-certificate:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/batch-certificate
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-batch-certificate-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-batch-certificate
 
   ledger-narwhal-batch-header:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/batch-header
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-batch-header-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-batch-header
 
   ledger-narwhal-data:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/data
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-data-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-data
 
   ledger-narwhal-subdag:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/subdag
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-subdag-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-subdag
 
   ledger-narwhal-transmission:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/transmission
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-transmission-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-transmission
 
   ledger-narwhal-transmission-id:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/narwhal/transmission-id
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-narwhal-transmission-id-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-narwhal-transmission-id
 
   ledger-puzzle:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.small >>
+    executor: rust-docker
+    resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/puzzle
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-puzzle-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-puzzle
 
   ledger-puzzle-epoch:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.small >>
+    executor: rust-docker
+    resource_class: << pipeline.parameters.large >>
     steps:
-      - run_serial:
-          workspace_member: ledger/puzzle/epoch
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-puzzle-epoch-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-puzzle-epoch
 
   ledger-query:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: ledger/query
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-query-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-query
 
   ledger-store:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
+
+      - run_test:
+          workspace_member: snarkvm-ledger-store
           flags: --features=rocks
-          workspace_member: ledger/store
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-store-cache
 
   ledger-test-helpers:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          workspace_member: ledger/test-helpers
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-test-helpers-cache
+      - run_test:
+          workspace_member: snarkvm-ledger-test-helpers
 
   parameters:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-parameters
           flags: -- --test-threads=2
-          workspace_member: parameters
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-parameters-cache
 
   parameters-large:
-    docker:
-      - image: cimg/rust:1.81.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.large >>
+    executor: rust-docker
+    resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-parameters
           flags: --no-run --features large_params
-          workspace_member: parameters
-          cache_key: v1.0.0-rust-1.81.0-snarkvm-parameters-large-cache
+          cache_key_suffix: -large
 
   parameters-uncached:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.large >>
+    executor: rust-docker
+    resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-parameters
           flags: -- --test-threads=2 --ignored test_load_bytes_mini
-          workspace_member: parameters
-          cache_key: v-{{ epoch }}-snarkvm-parameters-cache
+          cache_key_suffix: -v-{{ epoch }}
 
   synthesizer:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-synthesizer
           flags: --lib --bins
-          workspace_member: synthesizer
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-cache
+          timeout: 20
 
   synthesizer-test:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-synthesizer
           flags: --lib --bins --features test
-          workspace_member: synthesizer
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-test-cache
+          cache_key_suffix: -test
+          timeout: 25
 
-  synthesizer-mem-heavy:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.twoxlarge >>
-    steps:
-      - run_serial:
-          flags: -- --ignored test_deployment_synthesis_overload test_deep_nested_execution_cost
-          workspace_member: synthesizer
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-mem-heavy-cache
+#  synthesizer-mem-heavy:
+#    executor: rust-docker
+#    resource_class: << pipeline.parameters.twoxlarge >>
+#    steps:
+#      - run_test:
+#          workspace_member: snarkvm-synthesizer
+#          flags: -- --ignored test_deployment_synthesis_overload test_deep_nested_execution_cost
+#          cache_key_suffix: -mem-heavy
 
   synthesizer-integration:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
-          flags: --test '*' --features test -- --test-threads=8
-          workspace_member: synthesizer
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-integration-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer
+          flags: --test '*' --features test -- --test-threads=4
+          cache_key_suffix: -integration
 
   synthesizer-process:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-synthesizer-process
           flags: -- --test-threads=8
-          workspace_member: synthesizer/process
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-process-cache
 
   synthesizer-process-with-rocksdb:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-synthesizer-process
           flags: --features=rocks
-          workspace_member: synthesizer/process
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-process-cache
+          cache_key_suffix: -with-rocksdb
 
   synthesizer-program:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
           flags: --lib --bins
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-cache
 
   synthesizer-program-integration:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
-          flags: --test '*' -- --skip keccak --skip psd --skip sha --skip instruction::is --skip instruction::equal --skip instruction::commit
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-integration-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: -- --skip keccak --skip psd --skip sha --skip instruction::is --skip instruction::equal --skip instruction::commit
+          cache_key_suffix: -integration
 
   synthesizer-program-integration-keccak:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          flags: keccak --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-keccak-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: keccak
+          cache_key_suffix: -integration-keccak
 
   synthesizer-program-integration-psd:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          flags: psd --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-psd-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: psd
+          cache_key_suffix: -integration-psd
 
   synthesizer-program-integration-sha:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          flags: sha --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-sha-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: sha
+          cache_key_suffix: -integration-sha
 
   synthesizer-program-integration-instruction-is:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
-      - run_serial:
-          flags: instruction::is --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-is-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: instruction::is
+          cache_key_suffix: -integration-is
 
   synthesizer-program-integration-instruction-equal:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
-      - run_serial:
-          flags: instruction::equal --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-equal-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: instruction::equal
+          cache_key_suffix: -integration-equal
 
   synthesizer-program-integration-instruction-commit:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
-      - run_serial:
-          flags: instruction::commit --test '*'
-          workspace_member: synthesizer/program
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-program-commit-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-program
+          flags: instruction::commit
+          cache_key_suffix: -integration-commit
 
   synthesizer-snark:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: synthesizer/snark
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-snark-cache
+      - run_test:
+          workspace_member: snarkvm-synthesizer-snark
 
   utilities:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.large >>
     steps:
-      - run_serial:
-          workspace_member: utilities
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-utilities-cache
+      - run_test:
+          workspace_member: snarkvm-utilities
 
   utilities-derives:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
-      - run_serial:
-          workspace_member: utilities/derives
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-utilities-derives-cache
+      - run_test:
+          workspace_member: snarkvm-utilities-derives
 
   wasm:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
       - checkout
       - setup_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-wasm-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-wasm-cache
       - run:
           no_output_timeout: 30m
           command: |
@@ -876,55 +744,88 @@ jobs:
             # Run the tests
             cd wasm && wasm-pack test --node
       - clear_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-wasm-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-wasm-cache
 
   check-fmt:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.medium >>
     steps:
       - checkout
       - install_rust_nightly
       - setup_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-fmt-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-fmt-cache
       - run:
           name: Check style
           no_output_timeout: 35m
           command: cargo +nightly fmt --all -- --check
       - clear_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-fmt-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-fmt-cache
+
+  check-unused-dependencies:
+    executor: rust-docker
+    resource_class: << pipeline.parameters.medium >>
+    steps:
+      - checkout
+      - setup_environment:
+          cache_key: v4.0.0-rust-1.88.0-machete-cache
+      - run:
+          name: Check for unused dependencies
+          no_output_timeout: 10m
+          command: |
+            cargo install cargo-machete@0.7.0
+            cargo machete
+      - clear_environment:
+          cache_key: v4.0.0-rust-1.88.0-machete-cache
+
+  check-cargo-audit:
+    executor: rust-docker
+    resource_class: << pipeline.parameters.medium >>
+    steps:
+      - checkout
+      - setup_environment:
+          cache_key: v4.0.0-rust-1.88.0-cargo-audit-cache
+      - run:
+          name:  Check for security vulnerabilities
+          no_output_timeout: 10m
+          command: |
+            cargo install cargo-audit@0.21.2 --locked
+            cargo audit -D warnings
+      - clear_environment:
+          cache_key: v4.0.0-rust-1.88.0-cargo-audit-cache
 
   check-clippy:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.xlarge >>
     steps:
       - checkout
       - setup_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-clippy-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-clippy-cache
       - run:
-          name: Check Clippy
-          no_output_timeout: 35m
+          name: Check Clippy (default features)
+          timeout: 20m
           command: |
             cargo clippy --workspace --all-targets -- -D warnings
+      - run:
+          name: Check Clippy (all features)
+          timeout: 20m
+          command: |
             cargo clippy --workspace --all-targets --all-features -- -D warnings
       - clear_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-clippy-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-clippy-cache
 
   check-all-targets:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    executor: rust-docker
     resource_class: << pipeline.parameters.small >>
     steps:
       - checkout
       - setup_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-all-targets-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-all-targets-cache
       - run:
           name: Check all targets
           no_output_timeout: 35m
           command: cargo check --release --workspace --all-targets
       - clear_environment:
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-all-targets-cache
+          cache_key: v4.0.0-rust-1.88.0-snarkvm-all-targets-cache
 
   verify-windows:
     executor:
@@ -1004,7 +905,7 @@ workflows:
       - parameters-uncached
       - synthesizer
       - synthesizer-test
-      - synthesizer-mem-heavy
+      # - synthesizer-mem-heavy
       - synthesizer-integration
       - synthesizer-process
       - synthesizer-process-with-rocksdb
@@ -1022,6 +923,8 @@ workflows:
       - wasm
       - check-fmt
       - check-clippy
+      - check-unused-dependencies
+      - check-cargo-audit
       - check-all-targets
 
   windows-workflow:

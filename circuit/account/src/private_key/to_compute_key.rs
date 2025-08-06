@@ -22,7 +22,7 @@ impl<A: Aleo> PrivateKey<A> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{Circuit, helpers::generate_account};

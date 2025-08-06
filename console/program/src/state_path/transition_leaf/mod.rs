@@ -78,6 +78,6 @@ mod test_helpers {
 
     pub(super) fn sample_leaf(rng: &mut TestRng) -> TransitionLeaf<CurrentNetwork> {
         // Construct a new leaf.
-        TransitionLeaf::new_with_version(rng.gen(), rng.gen(), Uniform::rand(rng))
+        TransitionLeaf::new_with_version(rng.r#gen(), rng.r#gen(), Uniform::rand(rng))
     }
 }

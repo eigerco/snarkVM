@@ -53,8 +53,8 @@ impl<N: Network> Display for TransmissionID<N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Ratification => write!(f, "ratification"),
-            Self::Solution(id, checksum) => write!(f, "{}.{}", id, checksum),
-            Self::Transaction(id, checksum) => write!(f, "{}.{}", id, checksum),
+            Self::Solution(id, checksum) => write!(f, "{id}.{checksum}"),
+            Self::Transaction(id, checksum) => write!(f, "{id}.{checksum}"),
         }
     }
 }

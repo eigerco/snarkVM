@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::OnceCell;
+
 #[cfg(test)]
 use snarkvm_circuit_types::environment::assert_scope;
 
@@ -40,7 +42,6 @@ pub enum Plaintext<A: Aleo> {
     Array(Vec<Plaintext<A>>, OnceCell<Vec<Boolean<A>>>),
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Inject for Plaintext<A> {
     type Primitive = console::Plaintext<A::Network>;
 
@@ -54,7 +55,6 @@ impl<A: Aleo> Inject for Plaintext<A> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<A: Aleo> Eject for Plaintext<A> {
     type Primitive = console::Plaintext<A::Network>;
 
@@ -99,7 +99,32 @@ impl<A: Aleo> From<&Literal<A>> for Plaintext<A> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+// A macro that derives implementations of `From` for arrays of a plaintext literals of various sizes.
+macro_rules! impl_plaintext_from_array {
+    ($element:ident, $($size:literal),+) => {
+        $(
+            impl<A: Aleo> From<[$element<A>; $size]> for Plaintext<A> {
+                fn from(value: [$element<A>; $size]) -> Self {
+                    Self::Array(
+                        value
+                            .into_iter()
+                            .map(|element| Plaintext::from(Literal::$element(element)))
+                            .collect(),
+                        OnceCell::new(),
+                    )
+                }
+            }
+        )+
+    };
+}
+
+// Implement for `[U8<N>, SIZE]` for sizes 1 through 32.
+impl_plaintext_from_array!(
+    U8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    31, 32
+);
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Circuit;

@@ -42,7 +42,7 @@ impl<A: Aleo> Signature<A> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::{Circuit, helpers::generate_account};

@@ -42,6 +42,6 @@ impl From<std::io::Error> for FieldError {
 
 impl From<FieldError> for std::io::Error {
     fn from(error: FieldError) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("{error}"))
+        std::io::Error::other(format!("{error}"))
     }
 }

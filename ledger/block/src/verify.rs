@@ -17,8 +17,8 @@
 #![allow(clippy::type_complexity)]
 
 use super::*;
-use ledger_puzzle::Puzzle;
-use synthesizer_program::FinalizeOperation;
+use snarkvm_ledger_puzzle::Puzzle;
+use snarkvm_synthesizer_program::FinalizeOperation;
 
 use std::collections::HashSet;
 

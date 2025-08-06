@@ -77,12 +77,12 @@ impl<F: FieldTrait, const PREFIX: u16> Bech32ID<F> for AleoID<F, PREFIX> {
 
     #[inline]
     fn size_in_bytes() -> usize {
-        (F::size_in_bits() + 7) / 8
+        F::size_in_bits().div_ceil(8)
     }
 
     #[inline]
     fn number_of_data_characters() -> usize {
-        ((Self::size_in_bytes() * 8) + 4) / 5
+        (Self::size_in_bytes() * 8).div_ceil(5)
     }
 }
 

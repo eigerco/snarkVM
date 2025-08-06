@@ -97,7 +97,7 @@ mod tests {
         mode: Mode,
     ) {
         let size_in_bits = console::Field::<<Circuit as Environment>::Network>::size_in_bits();
-        let size_in_bytes = (size_in_bits + 7) / 8;
+        let size_in_bytes = size_in_bits.div_ceil(8);
         let num_leading_zero_bits = (size_in_bytes * 8) - size_in_bits;
 
         let mut rng = TestRng::default();

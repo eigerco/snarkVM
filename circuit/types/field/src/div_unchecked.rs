@@ -99,7 +99,7 @@ mod tests {
         match second.is_zero() {
             true => match mode_b.is_constant() {
                 true => {
-                    let result = std::panic::catch_unwind(|| a.div_unchecked(b));
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| a.div_unchecked(b)));
                     assert!(result.is_err());
                 }
                 false => {

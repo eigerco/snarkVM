@@ -140,7 +140,7 @@ impl<N: Network> Transition<N> {
                         // Return the private input.
                         Ok(Input::Private(*input_hash, Some(ciphertext)))
                     }
-                    (InputID::Record(_, _, serial_number, tag), Value::Record(..)) => {
+                    (InputID::Record(_, _, _, serial_number, tag), Value::Record(..)) => {
                         // Return the input record.
                         Ok(Input::Record(*serial_number, *tag))
                     }
@@ -191,7 +191,7 @@ impl<N: Network> Transition<N> {
                         // Return the private output.
                         Ok(Output::Private(*output_hash, Some(ciphertext)))
                     }
-                    (OutputID::Record(commitment, checksum), Value::Record(record)) => {
+                    (OutputID::Record(commitment, checksum, sender_ciphertext), Value::Record(record)) => {
                         // Retrieve the record name.
                         let record_name = match output_type {
                             ValueType::Record(record_name) => record_name,
@@ -205,25 +205,38 @@ impl<N: Network> Transition<N> {
                             None => bail!("Expected a register to be paired with a record output"),
                         };
 
-                        // Compute the record commitment.
-                        let candidate_cm = record.to_commitment(&program_id, record_name)?;
-                        // Ensure the commitment matches.
-                        ensure!(*commitment == candidate_cm, "The output record commitment is incorrect");
-
                         // Construct the (console) output index as a field element.
                         let index = Field::from_u64(output_register.locator());
                         // Compute the encryption randomizer as `HashToScalar(tvk || index)`.
                         let randomizer = N::hash_to_scalar_psd2(&[*request.tvk(), index])?;
 
                         // Encrypt the record, using the randomizer.
-                        let record_ciphertext = record.encrypt(randomizer)?;
+                        let (record_ciphertext, record_view_key) = record.encrypt_symmetric(randomizer)?;
+
+                        // Compute the record commitment.
+                        let candidate_cm = record.to_commitment(&program_id, record_name, &record_view_key)?;
+                        // Ensure the commitment matches.
+                        ensure!(*commitment == candidate_cm, "The output record commitment is incorrect");
+
                         // Compute the record checksum, as the hash of the encrypted record.
                         let ciphertext_checksum = N::hash_bhp1024(&record_ciphertext.to_bits_le())?;
                         // Ensure the checksum matches.
                         ensure!(*checksum == ciphertext_checksum, "The output record ciphertext checksum is incorrect");
 
+                        // Prepare a randomizer for the sender ciphertext.
+                        let randomizer = N::hash_psd4(&[N::encryption_domain(), record_view_key, Field::one()])?;
+                        // Encrypt the signer address using the randomizer.
+                        let candidate_sender_ciphertext = (**request.signer()).to_x_coordinate() + randomizer;
+                        // Ensure the sender ciphertext matches, or the sender ciphertext is zero.
+                        // Note: The option to allow a zero-value in the sender ciphertext allows
+                        // this feature to become optional or deactivated in the future.
+                        ensure!(
+                            (*sender_ciphertext == candidate_sender_ciphertext) || sender_ciphertext.is_zero(),
+                            "The output record sender ciphertext is incorrect"
+                        );
+
                         // Return the record output.
-                        Ok(Output::Record(*commitment, *checksum, Some(record_ciphertext)))
+                        Ok(Output::Record(*commitment, *checksum, Some(record_ciphertext), Some(*sender_ciphertext)))
                     }
                     (OutputID::ExternalRecord(hash), Value::Record(record)) => {
                         // Construct the (console) output index as a field element.
@@ -309,6 +322,12 @@ impl<N: Network> Transition<N> {
 }
 
 impl<N: Network> Transition<N> {
+    /// Returns `true` if this is a `credits.aleo/*` transition.
+    #[inline]
+    pub fn is_credits(&self) -> bool {
+        self.program_id.to_string() == "credits.aleo"
+    }
+
     /// Returns `true` if this is a `bond_public` transition.
     #[inline]
     pub fn is_bond_public(&self) -> bool {
@@ -362,6 +381,15 @@ impl<N: Network> Transition<N> {
             && self.program_id.to_string() == "credits.aleo"
             && self.function_name.to_string() == "split"
     }
+
+    /// Returns `true` if this is an `upgrade` transition.
+    #[inline]
+    pub fn is_upgrade(&self) -> bool {
+        self.inputs.len() == 1
+            && self.outputs.len() == 2
+            && self.program_id.to_string() == "credits.aleo"
+            && self.function_name.to_string() == "upgrade"
+    }
 }
 
 impl<N: Network> Transition<N> {
@@ -382,7 +410,7 @@ impl<N: Network> Transition<N> {
             Output::Constant(_, _) => false,
             Output::Public(_, _) => false,
             Output::Private(_, _) => false,
-            Output::Record(output_cm, _, _) => output_cm == commitment,
+            Output::Record(output_cm, _, _, _) => output_cm == commitment,
             Output::ExternalRecord(_) => false,
             Output::Future(_, _) => false,
         })
@@ -396,8 +424,8 @@ impl<N: Network> Transition<N> {
             Output::Constant(_, _) => None,
             Output::Public(_, _) => None,
             Output::Private(_, _) => None,
-            Output::Record(output_cm, _, Some(record)) if output_cm == commitment => Some(record),
-            Output::Record(_, _, _) => None,
+            Output::Record(output_cm, _, Some(record), _) if output_cm == commitment => Some(record),
+            Output::Record(_, _, _, _) => None,
             Output::ExternalRecord(_) => None,
             Output::Future(_, _) => None,
         })
@@ -496,7 +524,7 @@ pub mod test_helpers {
     /// Samples a random transition.
     pub(crate) fn sample_transition(rng: &mut TestRng) -> Transition<CurrentNetwork> {
         if let Transaction::Execute(_, _, execution, _) =
-            crate::transaction::test_helpers::sample_execution_transaction_with_fee(true, rng)
+            crate::transaction::test_helpers::sample_execution_transaction_with_fee(true, rng, 0)
         {
             execution.into_transitions().next().unwrap()
         } else {

@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_random() {
-        // Initialize a map[string]=>occurences to store all seen random elements.
+        // Initialize a map[string]=>occurrences to store all seen random elements.
         let mut map = HashMap::with_capacity(ITERATIONS);
 
         let mut rng = TestRng::default();
@@ -51,8 +51,8 @@ mod tests {
             map.entry(string).and_modify(|count| *count += 1).or_insert(1);
         }
         for (string, count) in map {
-            let allowed_occurences = 1 + ITERATIONS / (string.len() * 10);
-            assert!(count <= allowed_occurences, "Encountered an element with a count of {}: {}", count, string);
+            let allowed_occurrences = 1 + ITERATIONS / (string.len() * 10);
+            assert!(count <= allowed_occurrences, "Encountered an element with a count of {count}: {string}");
         }
     }
 }

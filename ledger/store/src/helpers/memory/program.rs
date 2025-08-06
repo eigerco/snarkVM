@@ -25,7 +25,7 @@ use console::{
     prelude::*,
     program::{Identifier, Plaintext, ProgramID, Value},
 };
-use ledger_committee::Committee;
+use snarkvm_ledger_committee::Committee;
 
 use aleo_std_storage::StorageMode;
 use indexmap::IndexSet;

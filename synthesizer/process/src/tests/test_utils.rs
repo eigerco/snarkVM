@@ -14,7 +14,6 @@
 // limitations under the License.
 
 use crate::Process;
-use algorithms::snark::varuna::VarunaVersion;
 use circuit::network::AleoV0;
 use console::{
     account::{Address, PrivateKey},
@@ -22,9 +21,10 @@ use console::{
     program::{Identifier, Literal, Plaintext, ProgramID, Value},
     types::U64,
 };
-use ledger_query::Query;
-use ledger_store::{BlockStore, FinalizeStorage, FinalizeStore, helpers::memory::BlockMemory};
-use synthesizer_program::{FinalizeGlobalState, FinalizeStoreTrait, Program};
+use snarkvm_algorithms::snark::varuna::VarunaVersion;
+use snarkvm_ledger_query::Query;
+use snarkvm_ledger_store::{BlockStore, FinalizeStorage, FinalizeStore, helpers::memory::BlockMemory};
+use snarkvm_synthesizer_program::{FinalizeGlobalState, FinalizeStoreTrait, Program};
 
 use indexmap::IndexMap;
 
@@ -40,7 +40,7 @@ macro_rules! sample_finalize_store {
         let temp_dir = ();
 
         #[cfg(feature = "rocks")]
-        let store = FinalizeStore::<CurrentNetwork, ledger_store::helpers::rocksdb::FinalizeDB<_>>::open(
+        let store = FinalizeStore::<CurrentNetwork, snarkvm_ledger_store::helpers::rocksdb::FinalizeDB<_>>::open(
             temp_dir.path().to_owned(),
         )
         .unwrap();
@@ -245,7 +245,7 @@ fn execute_function<F: FinalizeStorage<CurrentNetwork>>(
     let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(0u16)?;
 
     // Prepare the trace.
-    trace.prepare(Query::from(&block_store))?;
+    trace.prepare(&Query::from(&block_store))?;
 
     // Prove the execution.
     let execution = trace.prove_execution::<CurrentAleo, _>(function, VarunaVersion::V1, rng)?;

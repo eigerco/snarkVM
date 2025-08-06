@@ -16,6 +16,8 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
+extern crate snarkvm_console_types_string as console;
+
 mod equal;
 mod helpers;
 
@@ -38,7 +40,6 @@ pub struct StringType<E: Environment> {
 
 impl<E: Environment> StringTrait for StringType<E> {}
 
-#[cfg(feature = "console")]
 impl<E: Environment> Inject for StringType<E> {
     type Primitive = console::StringType<E::Network>;
 
@@ -68,7 +69,6 @@ impl<E: Environment> Inject for StringType<E> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> Eject for StringType<E> {
     type Primitive = console::StringType<E::Network>;
 
@@ -94,7 +94,6 @@ impl<E: Environment> Eject for StringType<E> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> Parser for StringType<E> {
     /// Parses a string into a string circuit.
     #[inline]
@@ -111,7 +110,6 @@ impl<E: Environment> Parser for StringType<E> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> FromStr for StringType<E> {
     type Err = Error;
 
@@ -130,7 +128,6 @@ impl<E: Environment> FromStr for StringType<E> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> TypeName for StringType<E> {
     /// Returns the type name of the circuit as a string.
     #[inline]
@@ -139,14 +136,12 @@ impl<E: Environment> TypeName for StringType<E> {
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> Debug for StringType<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }
 
-#[cfg(feature = "console")]
 impl<E: Environment> Display for StringType<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.eject_value(), self.eject_mode())

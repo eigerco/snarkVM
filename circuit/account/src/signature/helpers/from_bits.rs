@@ -15,7 +15,6 @@
 
 use super::*;
 
-#[cfg(feature = "console")]
 impl<A: Aleo> FromBits for Signature<A> {
     type Boolean = Boolean<A>;
 
@@ -72,7 +71,7 @@ impl<A: Aleo> FromBits for Signature<A> {
     }
 }
 
-#[cfg(all(test, feature = "console"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Circuit;

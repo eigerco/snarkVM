@@ -18,6 +18,8 @@
 // #![warn(clippy::cast_possible_truncation)]
 #![cfg_attr(test, allow(clippy::single_element_loop))]
 
+extern crate snarkvm_console as console;
+
 pub mod header;
 pub use header::*;
 
@@ -54,12 +56,12 @@ use console::{
     program::{Ciphertext, Record},
     types::{Field, Group, U64},
 };
-use ledger_authority::Authority;
-use ledger_committee::Committee;
-use ledger_narwhal_data::Data;
-use ledger_narwhal_subdag::Subdag;
-use ledger_narwhal_transmission_id::TransmissionID;
-use ledger_puzzle::{PuzzleSolutions, Solution, SolutionID};
+use snarkvm_ledger_authority::Authority;
+use snarkvm_ledger_committee::Committee;
+use snarkvm_ledger_narwhal_data::Data;
+use snarkvm_ledger_narwhal_subdag::Subdag;
+use snarkvm_ledger_narwhal_transmission_id::TransmissionID;
+use snarkvm_ledger_puzzle::{PuzzleSolutions, Solution, SolutionID};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Block<N: Network> {
@@ -611,17 +613,17 @@ impl<N: Network> Block<N> {
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use algorithms::snark::varuna::VarunaVersion;
     use console::account::{Address, PrivateKey};
-    use ledger_query::Query;
-    use ledger_store::{BlockStore, helpers::memory::BlockMemory};
-    use synthesizer_process::Process;
+    use snarkvm_algorithms::snark::varuna::VarunaVersion;
+    use snarkvm_ledger_query::Query;
+    use snarkvm_ledger_store::{BlockStore, helpers::memory::BlockMemory};
+    use snarkvm_synthesizer_process::Process;
 
     use aleo_std::StorageMode;
-    use once_cell::sync::OnceCell;
+    use std::sync::OnceLock;
 
     type CurrentNetwork = console::network::MainnetV0;
-    type CurrentAleo = circuit::network::AleoV0;
+    type CurrentAleo = snarkvm_circuit::network::AleoV0;
 
     /// Samples a random genesis block.
     pub(crate) fn sample_genesis_block(rng: &mut TestRng) -> Block<CurrentNetwork> {
@@ -645,8 +647,8 @@ pub mod test_helpers {
     pub(crate) fn sample_genesis_block_and_components(
         rng: &mut TestRng,
     ) -> (Block<CurrentNetwork>, Transaction<CurrentNetwork>, PrivateKey<CurrentNetwork>) {
-        static INSTANCE: OnceCell<(Block<CurrentNetwork>, Transaction<CurrentNetwork>, PrivateKey<CurrentNetwork>)> =
-            OnceCell::new();
+        static INSTANCE: OnceLock<(Block<CurrentNetwork>, Transaction<CurrentNetwork>, PrivateKey<CurrentNetwork>)> =
+            OnceLock::new();
         INSTANCE.get_or_init(|| sample_genesis_block_and_components_raw(rng)).clone()
     }
 
@@ -677,7 +679,7 @@ pub mod test_helpers {
         let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(StorageMode::new_test(None)).unwrap();
 
         // Prepare the assignments.
-        trace.prepare(Query::from(block_store)).unwrap();
+        trace.prepare(&Query::from(block_store)).unwrap();
         // Compute the proof and construct the execution.
         let execution = trace.prove_execution::<CurrentAleo, _>(locator.0, VarunaVersion::V1, rng).unwrap();
         // Convert the execution.
@@ -771,7 +773,7 @@ mod tests {
 
         // Ensure the transaction is not found.
         for _ in 0..10 {
-            let transition_id = &rng.gen();
+            let transition_id = &rng.r#gen();
             assert_eq!(block.find_transaction_for_transition_id(transition_id), None);
             assert_eq!(transactions.find_transaction_for_transition_id(transition_id), None);
         }
@@ -796,7 +798,7 @@ mod tests {
 
         // Ensure the commitments are not found.
         for _ in 0..10 {
-            let commitment = &rng.gen();
+            let commitment = &rng.r#gen();
             assert_eq!(block.find_transaction_for_commitment(commitment), None);
             assert_eq!(transactions.find_transaction_for_commitment(commitment), None);
         }
@@ -822,7 +824,7 @@ mod tests {
 
         // Ensure the transitions are not found.
         for _ in 0..10 {
-            let transition_id = &rng.gen();
+            let transition_id = &rng.r#gen();
             assert_eq!(block.find_transition(transition_id), None);
             assert_eq!(transactions.find_transition(transition_id), None);
             assert_eq!(transaction.find_transition(transition_id), None);
@@ -855,7 +857,7 @@ mod tests {
 
         // Ensure the commitments are not found.
         for _ in 0..10 {
-            let commitment = &rng.gen();
+            let commitment = &rng.r#gen();
             assert_eq!(block.find_transition_for_commitment(commitment), None);
             assert_eq!(transactions.find_transition_for_commitment(commitment), None);
             assert_eq!(transaction.find_transition_for_commitment(commitment), None);
@@ -882,7 +884,7 @@ mod tests {
 
         // Ensure the records are not found.
         for _ in 0..10 {
-            let commitment = &rng.gen();
+            let commitment = &rng.r#gen();
             assert_eq!(block.find_record(commitment), None);
             assert_eq!(transactions.find_record(commitment), None);
             assert_eq!(transaction.find_record(commitment), None);

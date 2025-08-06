@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use core::num::NonZeroU32;
-use rand_core::RngCore;
+use rand::RngCore;
 
 /// `OptionalRng` is a hack that is necessary because `Option<&mut R>` is not
 /// implicitly reborrowed like `&mut R` is. This causes problems when a variable
@@ -41,10 +41,10 @@ impl<R: RngCore> RngCore for OptionalRng<R> {
     }
 
     #[inline]
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
         match &mut self.0 {
             Some(r) => r.try_fill_bytes(dest),
-            None => Err(NonZeroU32::new(rand_core::Error::CUSTOM_START).unwrap().into()),
+            None => Err(NonZeroU32::new(rand::Error::CUSTOM_START).unwrap().into()),
         }
     }
 }

@@ -13,12 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use crate::{
-    FromBytes,
-    ToBytes,
-    Vec,
-    io::{self, Read, Write},
-};
+use std::io::{Read, Write};
+
+pub use crate::{FromBytes, ToBytes};
 use crate::{SerializationError, serialize::traits::*};
 
 /// Serialize a Vector's elements without serializing the Vector's length

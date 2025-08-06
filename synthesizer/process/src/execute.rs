@@ -33,9 +33,9 @@ impl<N: Network> Process<N> {
         #[cfg(feature = "aleo-cli")]
         println!("{}", format!(" • Executing '{locator}'...",).dimmed());
 
-        // This is the root request and does not have a caller.
+        // The root request does not have a caller.
         let caller = None;
-        // This is the root request and we do not have a root_tvk to pass on.
+        // The root request does not have to pass on another request's root_tvk.
         let root_tvk = None;
         // Initialize the trace.
         let trace = Arc::new(RwLock::new(Trace::new()));
@@ -88,7 +88,7 @@ mod tests {
         // Sample a credits record.
         let fee_in_microcredits = base_fee_in_microcredits.saturating_add(priority_fee_in_microcredits);
         let credits = Record::<CurrentNetwork, Plaintext<_>>::from_str(&format!(
-            "{{ owner: {owner}.private, microcredits: {fee_in_microcredits}u64.private, _nonce: 0group.public }}"
+            "{{ owner: {owner}.private, microcredits: {fee_in_microcredits}u64.private, _nonce: 0group.public, _version: 1u8.public }}"
         ))
         .unwrap();
 
