@@ -30,14 +30,12 @@ locktick = [ "dep:locktick" ]
 no_std_out = [ ]
 rocks = [ "snarkvm-ledger-store/rocks" ]
 wasm = [ "encoding", "js-sys", "web-sys" ]
-<<<<<<< HEAD
+dev-print = [ "snarkvm-utilities/dev-print" ]
 cosmwasm = [ "getrandom/custom" ]
 
 [dependencies.getrandom]
 version = "0.2"
-=======
-dev-print = [ "snarkvm-utilities/dev-print" ]
->>>>>>> upstream/staging
+optional = true
 
 [dependencies.snarkvm-curves]
 workspace = true
