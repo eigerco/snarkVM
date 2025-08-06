@@ -314,44 +314,23 @@ macro_rules! impl_remote {
 
             impl_store_and_remote_fetch!();
 
+            #[cfg(not(feature = "cosmwasm"))]
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-<<<<<<< HEAD
-                #[cfg(not(feature = "cosmwasm"))]
-                {
-                    let metadata: serde_json::Value =
-                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                    let expected_checksum: String =
-                        metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
-                    let expected_size: usize =
-                        metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
-=======
                 let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
                 let expected_checksum: String = metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
                 let expected_size: usize = metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
->>>>>>> v4.0.0
 
-                    // Construct the versioned filename.
-                    let filename = match expected_checksum.get(0..7) {
-                        Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
-                        _ => format!("{}.{}", $fname, "usrs"),
-                    };
-
-<<<<<<< HEAD
-                    impl_load_bytes_logic_remote!(
-                        $remote_url,
-                        $local_dir,
-                        &filename,
-                        metadata,
-                        expected_checksum,
-                        expected_size
-                    );
-                }
-
-                #[cfg(feature = "cosmwasm")]
-                unimplemented!("cosmwasm feature is not supported for remote parameters");
-=======
+                // Construct the versioned filename.
+                let filename = match expected_checksum.get(0..7) {
+                    Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
+                    _ => format!("{}.{}", $fname, "usrs"),
+                };
                 impl_load_bytes_logic_remote!($remote_url, $local_dir, &filename, metadata, expected_checksum, expected_size);
->>>>>>> v4.0.0
+            }
+
+            #[cfg(feature = "cosmwasm")]
+            pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
+                unimplemented!("cosmwasm feature is not supported for remote parameters");
             }
         }
         paste::item! {
@@ -370,48 +349,26 @@ macro_rules! impl_remote {
 
             impl_store_and_remote_fetch!();
 
+            #[cfg(not(feature = "cosmwasm"))]
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-<<<<<<< HEAD
-                #[cfg(not(feature = "cosmwasm"))]
-                {
-                    let metadata: serde_json::Value =
-                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                    let expected_checksum: String =
-                        metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
-                    let expected_size: usize = metadata[concat!($ftype, "_size")]
-                        .to_string()
-                        .parse()
-                        .expect("Failed to retrieve the file size");
-=======
                 let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
                 let expected_checksum: String =
                     metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
                 let expected_size: usize =
                     metadata[concat!($ftype, "_size")].to_string().parse().expect("Failed to retrieve the file size");
->>>>>>> v4.0.0
 
-                    // Construct the versioned filename.
-                    let filename = match expected_checksum.get(0..7) {
-                        Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
-                        _ => format!("{}.{}", $fname, $ftype),
-                    };
+                // Construct the versioned filename.
+                let filename = match expected_checksum.get(0..7) {
+                    Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
+                    _ => format!("{}.{}", $fname, $ftype),
+                };
 
-<<<<<<< HEAD
-                    impl_load_bytes_logic_remote!(
-                        $remote_url,
-                        $local_dir,
-                        &filename,
-                        metadata,
-                        expected_checksum,
-                        expected_size
-                    );
-                }
-
-                #[cfg(feature = "cosmwasm")]
-                unimplemented!()
-=======
                 impl_load_bytes_logic_remote!($remote_url, $local_dir, &filename, metadata, expected_checksum, expected_size);
->>>>>>> v4.0.0
+            }
+
+            #[cfg(feature = "cosmwasm")]
+            pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
+                unimplemented!("cosmwasm feature is not supported for remote parameters");
             }
         }
 
