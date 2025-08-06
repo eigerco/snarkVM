@@ -94,12 +94,7 @@ macro_rules! sqrt_impl {
                 // `T` is equivalent to `m` in the paper.
                 let v = $self.pow($P::T_MINUS_ONE_DIV_TWO);
                 let x = *$self * v.square();
-
-<<<<<<< HEAD
-                let k = n.isqrt();
-=======
                 let k = (n - 1).isqrt();
->>>>>>> upstream/staging
                 // It's important that k_2 results in a number which makes `l_minus_one_times_k`
                 // divisible by `k`, because the native arithmetic will not match the field
                 // arithmetic otherwise (native numbers will divide and round down, but field
