@@ -83,9 +83,9 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> ToB
         }
 
         // Write the number of components.
-        u16::try_from(self.identifiers.len()).map_err(|e| error(e.to_string()))?.write_le(&mut writer)?;
+        u16::try_from(self.components.len()).map_err(|e| error(e.to_string()))?.write_le(&mut writer)?;
         // Write the components.
-        for (identifier, definition) in self.identifiers.iter() {
+        for (identifier, definition) in self.components.iter() {
             match definition {
                 ProgramDefinition::Mapping => match self.mappings.get(identifier) {
                     Some(mapping) => {

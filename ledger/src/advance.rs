@@ -117,7 +117,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             *self.current_committee.write() = Some(current_committee);
         }
 
-        // If the block is the start of a new epoch, or the epoch hash has not been set, update the current epoch hash.
+        // If the block is the start of a new epoch, or the epoch hash has not been set,
+        // update the current epoch hash and clear the epoch prover cache.
         if block.height() % N::NUM_BLOCKS_PER_EPOCH == 0 || self.current_epoch_hash.read().is_none() {
             // Update and log the current epoch hash.
             match self.get_epoch_hash(block.height()).ok() {
@@ -127,6 +128,16 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
                 }
                 None => {
                     error!("Failed to update the current epoch hash at block {}", block.height());
+                }
+            }
+            // Clear the epoch provers cache.
+            self.epoch_provers_cache.write().clear();
+        } else {
+            // If the block is not part of a new epoch, add the new provers to the epoch prover cache.
+            if let Some(solutions) = block.solutions().as_deref() {
+                let mut epoch_provers_cache = self.epoch_provers_cache.write();
+                for (_, s) in solutions.iter() {
+                    let _ = *epoch_provers_cache.entry(s.address()).and_modify(|e| *e += 1).or_insert(1);
                 }
             }
         }
@@ -139,11 +150,11 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 pub fn split_candidate_solutions<T, F>(
     mut candidate_solutions: Vec<T>,
     max_solutions: usize,
-    verification_fn: F,
+    mut verification_fn: F,
 ) -> (Vec<T>, Vec<T>)
 where
     T: Sized + Copy,
-    F: Fn(&mut T) -> bool,
+    F: FnMut(&mut T) -> bool,
 {
     // Separate the candidate solutions into valid and aborted solutions.
     let mut valid_candidate_solutions = Vec::with_capacity(max_solutions);
@@ -217,9 +228,25 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
                 // Retrieve the latest proof target.
                 let latest_proof_target = self.latest_proof_target();
                 // Separate the candidate solutions into valid and aborted solutions.
+                let mut accepted_solutions: IndexMap<Address<N>, u64> = IndexMap::new();
                 let (valid_candidate_solutions, aborted_candidate_solutions) =
                     split_candidate_solutions(candidate_solutions, N::MAX_SOLUTIONS, |solution| {
-                        self.puzzle().check_solution_mut(solution, latest_epoch_hash, latest_proof_target).is_ok()
+                        let prover_address = solution.address();
+                        let num_accepted_solutions = accepted_solutions.get(&prover_address).copied().unwrap_or(0);
+                        // Check if the prover has reached their solution limit.
+                        if self.is_solution_limit_reached(&prover_address, num_accepted_solutions) {
+                            return false;
+                        }
+                        // Check if the solution is valid and update the number of accepted solutions.
+                        match self.puzzle().check_solution_mut(solution, latest_epoch_hash, latest_proof_target) {
+                            // Increment the number of accepted solutions for the prover.
+                            Ok(()) => {
+                                *accepted_solutions.entry(prover_address).or_insert(0) += 1;
+                                true
+                            }
+                            // The solution is invalid, so we do not increment the number of accepted solutions.
+                            Err(_) => false,
+                        }
                     });
 
                 // Check if there are any valid solutions.

@@ -55,6 +55,8 @@ thread_local! {
     /// The group bases for the Aleo signature and encryption schemes.
     static GENERATOR_G: Vec<Group<AleoTestnetV0>> = Vec::constant(<console::TestnetV0 as console::Network>::g_powers().to_vec());
 
+    /// The commitment domain as a constant field element.
+    static COMMITMENT_DOMAIN: Field<AleoTestnetV0> = Field::constant(<console::TestnetV0 as console::Network>::commitment_domain());
     /// The encryption domain as a constant field element.
     static ENCRYPTION_DOMAIN: Field<AleoTestnetV0> = Field::constant(<console::TestnetV0 as console::Network>::encryption_domain());
     /// The graph key domain as a constant field element.
@@ -105,6 +107,7 @@ impl Aleo for AleoTestnetV0 {
     /// Initializes the global constants for the Aleo environment.
     fn initialize_global_constants() {
         GENERATOR_G.with(|_| ());
+        COMMITMENT_DOMAIN.with(|_| ());
         ENCRYPTION_DOMAIN.with(|_| ());
         GRAPH_KEY_DOMAIN.with(|_| ());
         SERIAL_NUMBER_DOMAIN.with(|_| ());
@@ -123,6 +126,11 @@ impl Aleo for AleoTestnetV0 {
         SHA3_256.with(|_| ());
         SHA3_384.with(|_| ());
         SHA3_512.with(|_| ());
+    }
+
+    /// Returns the commitment domain as a constant field element.
+    fn commitment_domain() -> Field<Self> {
+        COMMITMENT_DOMAIN.with(|domain| domain.clone())
     }
 
     /// Returns the encryption domain as a constant field element.

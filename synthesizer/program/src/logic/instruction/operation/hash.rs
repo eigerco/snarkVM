@@ -24,48 +24,49 @@ use console::{
 };
 
 /// BHP256 is a collision-resistant hash function that processes inputs in 256-bit chunks.
-pub type HashBHP256<N> = HashInstruction<N, { Hasher::HashBHP256 as u8 }>;
+pub type HashBHP256<N> = HashInstruction<N, { HashVariant::HashBHP256 as u8 }>;
 /// BHP512 is a collision-resistant hash function that processes inputs in 512-bit chunks.
-pub type HashBHP512<N> = HashInstruction<N, { Hasher::HashBHP512 as u8 }>;
+pub type HashBHP512<N> = HashInstruction<N, { HashVariant::HashBHP512 as u8 }>;
 /// BHP768 is a collision-resistant hash function that processes inputs in 768-bit chunks.
-pub type HashBHP768<N> = HashInstruction<N, { Hasher::HashBHP768 as u8 }>;
+pub type HashBHP768<N> = HashInstruction<N, { HashVariant::HashBHP768 as u8 }>;
 /// BHP1024 is a collision-resistant hash function that processes inputs in 1024-bit chunks.
-pub type HashBHP1024<N> = HashInstruction<N, { Hasher::HashBHP1024 as u8 }>;
+pub type HashBHP1024<N> = HashInstruction<N, { HashVariant::HashBHP1024 as u8 }>;
 
 /// Keccak256 is a cryptographic hash function that outputs a 256-bit digest.
-pub type HashKeccak256<N> = HashInstruction<N, { Hasher::HashKeccak256 as u8 }>;
+pub type HashKeccak256<N> = HashInstruction<N, { HashVariant::HashKeccak256 as u8 }>;
 /// Keccak384 is a cryptographic hash function that outputs a 384-bit digest.
-pub type HashKeccak384<N> = HashInstruction<N, { Hasher::HashKeccak384 as u8 }>;
+pub type HashKeccak384<N> = HashInstruction<N, { HashVariant::HashKeccak384 as u8 }>;
 /// Keccak512 is a cryptographic hash function that outputs a 512-bit digest.
-pub type HashKeccak512<N> = HashInstruction<N, { Hasher::HashKeccak512 as u8 }>;
+pub type HashKeccak512<N> = HashInstruction<N, { HashVariant::HashKeccak512 as u8 }>;
 
 /// Pedersen64 is a collision-resistant hash function that processes inputs in 64-bit chunks.
-pub type HashPED64<N> = HashInstruction<N, { Hasher::HashPED64 as u8 }>;
+pub type HashPED64<N> = HashInstruction<N, { HashVariant::HashPED64 as u8 }>;
 /// Pedersen128 is a collision-resistant hash function that processes inputs in 128-bit chunks.
-pub type HashPED128<N> = HashInstruction<N, { Hasher::HashPED128 as u8 }>;
+pub type HashPED128<N> = HashInstruction<N, { HashVariant::HashPED128 as u8 }>;
 
 /// Poseidon2 is a cryptographic hash function that processes inputs in 2-field chunks.
-pub type HashPSD2<N> = HashInstruction<N, { Hasher::HashPSD2 as u8 }>;
+pub type HashPSD2<N> = HashInstruction<N, { HashVariant::HashPSD2 as u8 }>;
 /// Poseidon4 is a cryptographic hash function that processes inputs in 4-field chunks.
-pub type HashPSD4<N> = HashInstruction<N, { Hasher::HashPSD4 as u8 }>;
+pub type HashPSD4<N> = HashInstruction<N, { HashVariant::HashPSD4 as u8 }>;
 /// Poseidon8 is a cryptographic hash function that processes inputs in 8-field chunks.
-pub type HashPSD8<N> = HashInstruction<N, { Hasher::HashPSD8 as u8 }>;
+pub type HashPSD8<N> = HashInstruction<N, { HashVariant::HashPSD8 as u8 }>;
 
 /// SHA3-256 is a cryptographic hash function that outputs a 256-bit digest.
-pub type HashSha3_256<N> = HashInstruction<N, { Hasher::HashSha3_256 as u8 }>;
+pub type HashSha3_256<N> = HashInstruction<N, { HashVariant::HashSha3_256 as u8 }>;
 /// SHA3-384 is a cryptographic hash function that outputs a 384-bit digest.
-pub type HashSha3_384<N> = HashInstruction<N, { Hasher::HashSha3_384 as u8 }>;
+pub type HashSha3_384<N> = HashInstruction<N, { HashVariant::HashSha3_384 as u8 }>;
 /// SHA3-512 is a cryptographic hash function that outputs a 512-bit digest.
-pub type HashSha3_512<N> = HashInstruction<N, { Hasher::HashSha3_512 as u8 }>;
+pub type HashSha3_512<N> = HashInstruction<N, { HashVariant::HashSha3_512 as u8 }>;
 
 /// Poseidon2 is a cryptographic hash function that processes inputs in 2-field chunks.
-pub type HashManyPSD2<N> = HashInstruction<N, { Hasher::HashManyPSD2 as u8 }>;
+pub type HashManyPSD2<N> = HashInstruction<N, { HashVariant::HashManyPSD2 as u8 }>;
 /// Poseidon4 is a cryptographic hash function that processes inputs in 4-field chunks.
-pub type HashManyPSD4<N> = HashInstruction<N, { Hasher::HashManyPSD4 as u8 }>;
+pub type HashManyPSD4<N> = HashInstruction<N, { HashVariant::HashManyPSD4 as u8 }>;
 /// Poseidon8 is a cryptographic hash function that processes inputs in 8-field chunks.
-pub type HashManyPSD8<N> = HashInstruction<N, { Hasher::HashManyPSD8 as u8 }>;
+pub type HashManyPSD8<N> = HashInstruction<N, { HashVariant::HashManyPSD8 as u8 }>;
 
-enum Hasher {
+/// Which hash function to use.
+pub enum HashVariant {
     HashBHP256,
     HashBHP512,
     HashBHP768,
@@ -196,6 +197,72 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
     }
 }
 
+// This code is nearly identical in `execute` and `evaluate`; we
+// extract it here in a macro.
+//
+// The `$q` parameter allows us to wrap a value in `Result::Ok`, since
+// the `Aleo` functions don't return a `Result` but the `Network` ones do.
+macro_rules! do_hash {
+    ($N: ident, $variant: expr, $destination_type: expr, $input: expr, $ty: ty, $q: expr) => {{
+        let bits = || $input.to_bits_le();
+
+        let fields = || $q($input.to_fields());
+
+        let literal_type = match $destination_type {
+            PlaintextType::Literal(literal_type) => *literal_type,
+            PlaintextType::Struct(..) => bail!("Cannot hash into a struct"),
+            PlaintextType::Array(..) => bail!("Cannot hash into an array (yet)"),
+        };
+
+        let literal_output: $ty = match ($variant, literal_type) {
+            (0, _) => $q($N::hash_to_group_bhp256(&bits()))?.into(),
+            (1, _) => $q($N::hash_to_group_bhp512(&bits()))?.into(),
+            (2, _) => $q($N::hash_to_group_bhp768(&bits()))?.into(),
+            (3, _) => $q($N::hash_to_group_bhp1024(&bits()))?.into(),
+            (4, _) => $q($N::hash_to_group_bhp256(&$q($N::hash_keccak256(&bits()))?))?.into(),
+            (5, _) => $q($N::hash_to_group_bhp512(&$q($N::hash_keccak384(&bits()))?))?.into(),
+            (6, _) => $q($N::hash_to_group_bhp512(&$q($N::hash_keccak512(&bits()))?))?.into(),
+            (7, _) => $q($N::hash_to_group_ped64(&bits()))?.into(),
+            (8, _) => $q($N::hash_to_group_ped128(&bits()))?.into(),
+            (9, LiteralType::Address | LiteralType::Group) => $q($N::hash_to_group_psd2(&fields()?))?.into(),
+            (9, _) => $q($N::hash_psd2(&fields()?))?.into(),
+            (10, LiteralType::Address | LiteralType::Group) => $q($N::hash_to_group_psd4(&fields()?))?.into(),
+            (10, _) => $q($N::hash_psd4(&fields()?))?.into(),
+            (11, LiteralType::Address | LiteralType::Group) => $q($N::hash_to_group_psd8(&fields()?))?.into(),
+            (11, _) => $q($N::hash_psd8(&fields()?))?.into(),
+            (12, _) => $q($N::hash_to_group_bhp256(&$q($N::hash_sha3_256(&bits()))?))?.into(),
+            (13, _) => $q($N::hash_to_group_bhp512(&$q($N::hash_sha3_384(&bits()))?))?.into(),
+            (14, _) => $q($N::hash_to_group_bhp512(&$q($N::hash_sha3_512(&bits()))?))?.into(),
+            (15, _) => bail!("'hash_many.psd2' is not yet implemented"),
+            (16, _) => bail!("'hash_many.psd4' is not yet implemented"),
+            (17, _) => bail!("'hash_many.psd8' is not yet implemented"),
+            (18.., _) => bail!("Invalid 'hash' variant: {}", $variant),
+        };
+
+        literal_output.cast_lossy(literal_type)?
+    }};
+}
+
+/// Evaluate a hash operation.
+///
+/// This allows running the hash without the machinery of stacks and registers.
+/// This is necessary for the Leo interpeter.
+pub fn evaluate_hash<N: Network>(
+    variant: HashVariant,
+    input: &Value<N>,
+    destination_type: &PlaintextType<N>,
+) -> Result<Literal<N>> {
+    evaluate_hash_internal(variant as u8, input, destination_type)
+}
+
+fn evaluate_hash_internal<N: Network>(
+    variant: u8,
+    input: &Value<N>,
+    destination_type: &PlaintextType<N>,
+) -> Result<Literal<N>> {
+    Ok(do_hash!(N, variant, destination_type, input, Literal<N>, |x| x))
+}
+
 impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
     /// Evaluates the instruction.
     #[inline]
@@ -211,57 +278,9 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
 
         // Load the operand.
         let input = registers.load(stack, &self.operands[0])?;
-        // Hash the input.
-        let output = match (VARIANT, &self.destination_type) {
-            (0, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_bhp256(&input.to_bits_le())?),
-            (1, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_bhp512(&input.to_bits_le())?),
-            (2, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_bhp768(&input.to_bits_le())?),
-            (3, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_bhp1024(&input.to_bits_le())?),
-            (4, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp256(&N::hash_keccak256(&input.to_bits_le())?)?)
-            }
-            (5, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp512(&N::hash_keccak384(&input.to_bits_le())?)?)
-            }
-            (6, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp512(&N::hash_keccak512(&input.to_bits_le())?)?)
-            }
-            (7, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_ped64(&input.to_bits_le())?),
-            (8, PlaintextType::Literal(..)) => Literal::Group(N::hash_to_group_ped128(&input.to_bits_le())?),
-            (9, PlaintextType::Literal(LiteralType::Address)) | (9, PlaintextType::Literal(LiteralType::Group)) => {
-                Literal::Group(N::hash_to_group_psd2(&input.to_fields()?)?)
-            }
-            (9, PlaintextType::Literal(..)) => Literal::Field(N::hash_psd2(&input.to_fields()?)?),
-            (10, PlaintextType::Literal(LiteralType::Address)) | (10, PlaintextType::Literal(LiteralType::Group)) => {
-                Literal::Group(N::hash_to_group_psd4(&input.to_fields()?)?)
-            }
-            (10, PlaintextType::Literal(..)) => Literal::Field(N::hash_psd4(&input.to_fields()?)?),
-            (11, PlaintextType::Literal(LiteralType::Address)) | (11, PlaintextType::Literal(LiteralType::Group)) => {
-                Literal::Group(N::hash_to_group_psd8(&input.to_fields()?)?)
-            }
-            (11, PlaintextType::Literal(..)) => Literal::Field(N::hash_psd8(&input.to_fields()?)?),
-            (12, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp256(&N::hash_sha3_256(&input.to_bits_le())?)?)
-            }
-            (13, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp512(&N::hash_sha3_384(&input.to_bits_le())?)?)
-            }
-            (14, PlaintextType::Literal(..)) => {
-                Literal::Group(N::hash_to_group_bhp512(&N::hash_sha3_512(&input.to_bits_le())?)?)
-            }
-            (15, _) => bail!("'hash_many.psd2' is not yet implemented"),
-            (16, _) => bail!("'hash_many.psd4' is not yet implemented"),
-            (17, _) => bail!("'hash_many.psd8' is not yet implemented"),
-            (18.., _) => bail!("Invalid 'hash' variant: {VARIANT}"),
-            (_, PlaintextType::Struct(..)) => bail!("Cannot hash into a struct"),
-            (_, PlaintextType::Array(..)) => bail!("Cannot hash into an array (yet)"),
-        };
-        // Cast the output to the destination type.
-        let output = match self.destination_type {
-            PlaintextType::Literal(literal_type) => output.cast_lossy(literal_type)?,
-            PlaintextType::Struct(..) => bail!("Cannot hash into a struct"),
-            PlaintextType::Array(..) => bail!("Cannot hash into an array (yet)"),
-        };
+
+        let output = evaluate_hash_internal(VARIANT, &input, &self.destination_type)?;
+
         // Store the output.
         registers.store(stack, &self.destination, Value::Plaintext(Plaintext::from(output)))
     }
@@ -282,57 +301,9 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
 
         // Load the operand.
         let input = registers.load_circuit(stack, &self.operands[0])?;
-        // Hash the input.
-        let output = match (VARIANT, &self.destination_type) {
-            (0, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_bhp256(&input.to_bits_le())),
-            (1, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_bhp512(&input.to_bits_le())),
-            (2, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_bhp768(&input.to_bits_le())),
-            (3, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_bhp1024(&input.to_bits_le())),
-            (4, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp256(&A::hash_keccak256(&input.to_bits_le())))
-            }
-            (5, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp512(&A::hash_keccak384(&input.to_bits_le())))
-            }
-            (6, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp512(&A::hash_keccak512(&input.to_bits_le())))
-            }
-            (7, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_ped64(&input.to_bits_le())),
-            (8, PlaintextType::Literal(..)) => circuit::Literal::Group(A::hash_to_group_ped128(&input.to_bits_le())),
-            (9, PlaintextType::Literal(LiteralType::Address)) | (9, PlaintextType::Literal(LiteralType::Group)) => {
-                circuit::Literal::Group(A::hash_to_group_psd2(&input.to_fields()))
-            }
-            (9, PlaintextType::Literal(..)) => circuit::Literal::Field(A::hash_psd2(&input.to_fields())),
-            (10, PlaintextType::Literal(LiteralType::Address)) | (10, PlaintextType::Literal(LiteralType::Group)) => {
-                circuit::Literal::Group(A::hash_to_group_psd4(&input.to_fields()))
-            }
-            (10, PlaintextType::Literal(..)) => circuit::Literal::Field(A::hash_psd4(&input.to_fields())),
-            (11, PlaintextType::Literal(LiteralType::Address)) | (11, PlaintextType::Literal(LiteralType::Group)) => {
-                circuit::Literal::Group(A::hash_to_group_psd8(&input.to_fields()))
-            }
-            (11, PlaintextType::Literal(..)) => circuit::Literal::Field(A::hash_psd8(&input.to_fields())),
-            (12, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp256(&A::hash_sha3_256(&input.to_bits_le())))
-            }
-            (13, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp512(&A::hash_sha3_384(&input.to_bits_le())))
-            }
-            (14, PlaintextType::Literal(..)) => {
-                circuit::Literal::Group(A::hash_to_group_bhp512(&A::hash_sha3_512(&input.to_bits_le())))
-            }
-            (15, _) => bail!("'hash_many.psd2' is not yet implemented"),
-            (16, _) => bail!("'hash_many.psd4' is not yet implemented"),
-            (17, _) => bail!("'hash_many.psd8' is not yet implemented"),
-            (18.., _) => bail!("Invalid 'hash' variant: {VARIANT}"),
-            (_, PlaintextType::Struct(..)) => bail!("Cannot hash into a struct"),
-            (_, PlaintextType::Array(..)) => bail!("Cannot hash into an array (yet)"),
-        };
-        // Cast the output to the destination type.
-        let output = match self.destination_type {
-            PlaintextType::Literal(literal_type) => output.cast_lossy(literal_type)?,
-            PlaintextType::Struct(..) => bail!("Cannot hash into a struct"),
-            PlaintextType::Array(..) => bail!("Cannot hash into an array (yet)"),
-        };
+
+        let output = do_hash!(A, VARIANT, &self.destination_type, input, circuit::Literal<A>, Result::<_>::Ok);
+
         // Convert the output to a stack value.
         let output = circuit::Value::Plaintext(circuit::Plaintext::Literal(output, Default::default()));
         // Store the output.

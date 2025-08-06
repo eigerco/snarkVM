@@ -44,6 +44,26 @@ impl<N: Network> Process<N> {
         }
         lap!(timer, "Insert the verifying keys");
 
+        // Determine which mappings must be initialized.
+        let mappings = match deployment.edition().is_zero() {
+            true => deployment.program().mappings().values().collect::<Vec<_>>(),
+            false => {
+                // Get the existing stack.
+                let existing_stack = self.get_stack(deployment.program_id())?;
+                // Get the existing mappings.
+                let existing_mappings = existing_stack.program().mappings();
+                // Determine and return the new mappings
+                let mut new_mappings = Vec::new();
+                for mapping in deployment.program().mappings().values() {
+                    if !existing_mappings.contains_key(mapping.name()) {
+                        new_mappings.push(mapping);
+                    }
+                }
+                new_mappings
+            }
+        };
+        lap!(timer, "Retrieve the mappings to initialize");
+
         // Initialize the mappings, and store their finalize operations.
         atomic_batch_scope!(store, {
             // Initialize a list for the finalize operations.
@@ -61,8 +81,8 @@ impl<N: Network> Process<N> {
 
             // Retrieve the program ID.
             let program_id = deployment.program_id();
-            // Iterate over the mappings.
-            for mapping in deployment.program().mappings().values() {
+            // Iterate over the mappings that must be initialized.
+            for mapping in mappings {
                 // Initialize the mapping.
                 finalize_operations.push(store.initialize_mapping(*program_id, *mapping.name())?);
             }
@@ -105,11 +125,10 @@ impl<N: Network> Process<N> {
 
         // Construct the call graph.
         let consensus_version = N::CONSENSUS_VERSION(state.block_height())?;
-        let call_graph = if (ConsensusVersion::V1..=ConsensusVersion::V2).contains(&consensus_version) {
-            self.construct_call_graph(execution)?
-        // If the height is greater than or equal to `ConsensusVersion::V3`, then provide an empty call graph, as it is no longer used during finalization.
-        } else {
-            HashMap::new()
+        let call_graph = match (ConsensusVersion::V1..=ConsensusVersion::V2).contains(&consensus_version) {
+            true => self.construct_call_graph(execution)?,
+            // If the height is greater than or equal to `ConsensusVersion::V3`, then provide an empty call graph, as it is no longer used during finalization.
+            false => HashMap::new(),
         };
 
         atomic_batch_scope!(store, {
@@ -167,11 +186,10 @@ fn finalize_fee_transition<N: Network, P: FinalizeStorage<N>>(
 ) -> Result<Vec<FinalizeOperation<N>>> {
     // Construct the call graph.
     let consensus_version = N::CONSENSUS_VERSION(state.block_height())?;
-    let call_graph = if (ConsensusVersion::V1..=ConsensusVersion::V2).contains(&consensus_version) {
-        HashMap::from([(*fee.transition_id(), Vec::new())])
-    } else {
+    let call_graph = match (ConsensusVersion::V1..=ConsensusVersion::V2).contains(&consensus_version) {
+        true => HashMap::from([(*fee.transition_id(), Vec::new())]),
         // If the height is greater than or equal to `ConsensusVersion::V3`, then provide an empty call graph, as it is no longer used during finalization.
-        HashMap::new()
+        false => HashMap::new(),
     };
 
     // Finalize the transition.

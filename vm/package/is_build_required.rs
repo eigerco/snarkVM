@@ -73,7 +73,7 @@ mod tests {
     type Aleo = crate::circuit::AleoV0;
 
     fn temp_dir() -> PathBuf {
-        tempfile::tempdir().expect("Failed to open temporary directory").into_path()
+        tempfile::tempdir().expect("Failed to open temporary directory").keep()
     }
 
     fn initialize_unbuilt_package(valid: bool) -> Result<Package<MainnetV0>> {
@@ -173,7 +173,7 @@ function compute:
         let package = initialize_unbuilt_package(true).unwrap();
         assert!(package.is_build_required::<Aleo>());
 
-        package.build::<Aleo>(None).unwrap();
+        package.build::<Aleo>().unwrap();
         assert!(!package.is_build_required::<Aleo>());
     }
 }

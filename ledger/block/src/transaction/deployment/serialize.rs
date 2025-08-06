@@ -66,7 +66,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the deployment.
-        let expected = test_helpers::sample_deployment(rng);
+        let expected = test_helpers::sample_deployment(0, rng);
 
         // Serialize
         let expected_string = &expected.to_string();
@@ -85,7 +85,7 @@ mod tests {
         let rng = &mut TestRng::default();
 
         // Sample the deployment.
-        let expected = test_helpers::sample_deployment(rng);
+        let expected = test_helpers::sample_deployment(0, rng);
 
         // Serialize
         let expected_bytes = expected.to_bytes_le()?;

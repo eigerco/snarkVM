@@ -234,7 +234,6 @@ impl<P: Parameters> ProjectiveCurve for Projective<P> {
     }
 
     #[inline]
-    #[must_use]
     fn double(&self) -> Self {
         let mut result = *self;
         result.double_in_place();

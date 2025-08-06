@@ -18,6 +18,7 @@ mod serialize;
 mod string;
 
 use console::{
+    account::{Address, ViewKey},
     network::prelude::*,
     program::{Ciphertext, Future, Plaintext, Record, TransitionLeaf},
     types::{Field, Group},
@@ -34,8 +35,8 @@ pub enum Output<N: Network> {
     Public(Field<N>, Option<Plaintext<N>>),
     /// The ciphertext hash and (optional) ciphertext.
     Private(Field<N>, Option<Ciphertext<N>>),
-    /// The commitment, checksum, and (optional) record ciphertext.
-    Record(Field<N>, Field<N>, Option<Record<N, Ciphertext<N>>>),
+    /// The commitment, checksum, (optional) record ciphertext, and (optional) sender ciphertext.
+    Record(Field<N>, Field<N>, Option<Record<N, Ciphertext<N>>>, Option<Field<N>>),
     /// The output commitment of the external record. Note: This is **not** the record commitment.
     ExternalRecord(Field<N>),
     /// The future hash and (optional) future.
@@ -49,7 +50,7 @@ impl<N: Network> Output<N> {
             Output::Constant(_, _) => 0,
             Output::Public(_, _) => 1,
             Output::Private(_, _) => 2,
-            Output::Record(_, _, _) => 3,
+            Output::Record(_, _, _, _) => 3,
             Output::ExternalRecord(_) => 4,
             Output::Future(_, _) => 5,
         }
@@ -76,7 +77,7 @@ impl<N: Network> Output<N> {
     #[allow(clippy::type_complexity)]
     pub const fn record(&self) -> Option<(&Field<N>, &Record<N, Ciphertext<N>>)> {
         match self {
-            Output::Record(commitment, _, Some(record)) => Some((commitment, record)),
+            Output::Record(commitment, _, Some(record), _) => Some((commitment, record)),
             _ => None,
         }
     }
@@ -85,7 +86,7 @@ impl<N: Network> Output<N> {
     #[allow(clippy::type_complexity)]
     pub fn into_record(self) -> Option<(Field<N>, Record<N, Ciphertext<N>>)> {
         match self {
-            Output::Record(commitment, _, Some(record)) => Some((commitment, record)),
+            Output::Record(commitment, _, Some(record), _) => Some((commitment, record)),
             _ => None,
         }
     }
@@ -109,7 +110,7 @@ impl<N: Network> Output<N> {
     /// Returns the nonce, if the output is a record.
     pub const fn nonce(&self) -> Option<&Group<N>> {
         match self {
-            Output::Record(_, _, Some(record)) => Some(record.nonce()),
+            Output::Record(_, _, Some(record), _) => Some(record.nonce()),
             _ => None,
         }
     }
@@ -117,7 +118,7 @@ impl<N: Network> Output<N> {
     /// Returns the nonce, if the output is a record, and consumes `self`.
     pub fn into_nonce(self) -> Option<Group<N>> {
         match self {
-            Output::Record(_, _, Some(record)) => Some(record.into_nonce()),
+            Output::Record(_, _, Some(record), _) => Some(record.into_nonce()),
             _ => None,
         }
     }
@@ -138,6 +139,22 @@ impl<N: Network> Output<N> {
         }
     }
 
+    /// Returns the sender ciphertext, if the output is a record.
+    pub const fn sender_ciphertext(&self) -> Option<&Field<N>> {
+        match self {
+            Output::Record(_, _, _, Some(sender_ciphertext)) => Some(sender_ciphertext),
+            _ => None,
+        }
+    }
+
+    /// Returns the sender ciphertext, if the output is a record, and consumes `self`.
+    pub fn into_sender_ciphertext(self) -> Option<Field<N>> {
+        match self {
+            Output::Record(_, _, _, Some(sender_ciphertext)) => Some(sender_ciphertext),
+            _ => None,
+        }
+    }
+
     /// Returns the future, if the output is a future.
     pub const fn future(&self) -> Option<&Future<N>> {
         match self {
@@ -145,13 +162,64 @@ impl<N: Network> Output<N> {
             _ => None,
         }
     }
+}
 
+impl<N: Network> Output<N> {
+    /// Returns the sender address, given the account view key of the record owner.
+    ///
+    /// If the output is not a record or does not contain a sender ciphertext, it returns `Ok(None)`.
+    /// If the record does not belong to the given account view key, it returns `Err`.
+    /// If the sender ciphertext is malformed or cannot be decrypted, it returns `Err`.
+    pub fn decrypt_sender_ciphertext(&self, account_view_key: &ViewKey<N>) -> Result<Option<Address<N>>> {
+        // Retrieve the record ciphertext and sender ciphertext, if they exist.
+        let (record_ciphertext, sender_ciphertext) = match self {
+            Output::Record(_, _, Some(record_ciphertext), Some(sender_ciphertext)) => {
+                (record_ciphertext, sender_ciphertext)
+            }
+            // If the output is not a record or does not contain a sender ciphertext, return `None`.
+            _ => return Ok(None),
+        };
+
+        // Compute the record view key.
+        let record_view_key = (*record_ciphertext.nonce() * **account_view_key).to_x_coordinate();
+        // Retrieve the record owner.
+        let expected_owner = match record_ciphertext.owner().is_public() {
+            true => record_ciphertext.owner().decrypt_with_randomizer(&[])?,
+            false => {
+                // Prepare the randomizer for the record owner.
+                let randomizers = N::hash_many_psd8(&[N::encryption_domain(), record_view_key], 1);
+                ensure!(randomizers.len() == 1, "Expected exactly one randomizer for the record owner");
+                // Decrypt the record owner using the randomizer.
+                record_ciphertext.owner().decrypt_with_randomizer(&[randomizers[0]])?
+            }
+        };
+        // Ensure this record belongs to the given account view key.
+        ensure!(
+            *expected_owner == account_view_key.to_address(),
+            "The record does not belong to the given account view key"
+        );
+
+        // Compute the encryption randomizer for the sender ciphertext.
+        let Ok(randomizer) = N::hash_psd4(&[N::encryption_domain(), record_view_key, Field::one()]) else {
+            bail!("Failed to compute the encryption randomizer for the sender ciphertext");
+        };
+        // Decrypt the sender ciphertext using the record view key.
+        let sender_x_coordinate = *sender_ciphertext - randomizer;
+        // Recover the sender address.
+        match Address::from_field(&sender_x_coordinate) {
+            Ok(sender_address) => Ok(Some(sender_address)),
+            Err(error) => bail!("Failed to recover the sender address - {error}"),
+        }
+    }
+}
+
+impl<N: Network> Output<N> {
     /// Returns the public verifier inputs for the proof.
     pub fn verifier_inputs(&self) -> impl '_ + Iterator<Item = N::Field> {
         // Append the output ID.
         [**self.id()].into_iter()
-            // Append the checksum if it exists.
-            .chain([self.checksum().map(|sum| **sum)].into_iter().flatten())
+            // Append the checksum and sender ciphertext, if they exist.
+            .chain([self.checksum().map(|sum| **sum), self.sender_ciphertext().map(|sender| **sender)].into_iter().flatten())
     }
 
     /// Returns `true` if the output is well-formed.
@@ -209,10 +277,32 @@ impl<N: Network> Output<N> {
                     Err(error) => Err(error),
                 }
             }
-            Output::Record(_, checksum, Some(value)) => match N::hash_bhp1024(&value.to_bits_le()) {
-                Ok(candidate_hash) => Ok(checksum == &candidate_hash),
-                Err(error) => Err(error),
-            },
+            Output::Record(_, checksum, Some(record_ciphertext), sender_ciphertext) => {
+                // Construct the checksum preimage.
+                let mut preimage = record_ciphertext.to_bits_le();
+                // If the record version is set to Version 0, ensure the sender ciphertext is `None`.
+                // If the record version is set to Version 1 or higher, ensure the sender ciphertext is `Some` and non-zero.
+                if **record_ciphertext.version() == 0 {
+                    ensure!(sender_ciphertext.is_none(), "The sender ciphertext must be None for Version 0 records");
+                    // Truncate the last 8 bits of the preimage, as Version 0 records do not include the version in serialization.
+                    preimage.truncate(preimage.len().saturating_sub(8));
+                } else if **record_ciphertext.version() == 1 {
+                    ensure!(sender_ciphertext.is_some(), "The sender ciphertext must be non-empty");
+                    // Note: The sender ciphertext feature can become optional or deactivated by removing this check.
+                    ensure!(sender_ciphertext.unwrap() != Field::zero(), "The sender ciphertext must be non-zero");
+                } else {
+                    bail!(
+                        "The record version must be set to Version 0 or 1, but found Version {}",
+                        **record_ciphertext.version()
+                    );
+                }
+
+                // Ensure the record ciphertext hash matches the checksum.
+                match N::hash_bhp1024(&preimage) {
+                    Ok(candidate_hash) => Ok(checksum == &candidate_hash),
+                    Err(error) => Err(error),
+                }
+            }
             Output::Future(hash, Some(output)) => {
                 match output.to_fields() {
                     Ok(fields) => {
@@ -236,7 +326,7 @@ impl<N: Network> Output<N> {
             Output::Constant(_, None)
             | Output::Public(_, None)
             | Output::Private(_, None)
-            | Output::Record(_, _, None)
+            | Output::Record(_, _, None, _)
             | Output::Future(_, None) => {
                 // This enforces that the transition *must* contain the value for this transition output.
                 // A similar rule is enforced for the transition input.
@@ -289,6 +379,11 @@ pub(crate) mod test_helpers {
         ).unwrap();
         let record_ciphertext = record.encrypt(randomizer).unwrap();
         let record_checksum = CurrentNetwork::hash_bhp1024(&record_ciphertext.to_bits_le()).unwrap();
+        // Sample a sender ciphertext.
+        let sender_ciphertext = match record_ciphertext.version().is_zero() {
+            true => None,
+            false => Some(Uniform::rand(rng)),
+        };
 
         vec![
             (transition_id, input),
@@ -298,8 +393,11 @@ pub(crate) mod test_helpers {
             (Uniform::rand(rng), Output::Public(plaintext_hash, Some(plaintext))),
             (Uniform::rand(rng), Output::Private(Uniform::rand(rng), None)),
             (Uniform::rand(rng), Output::Private(ciphertext_hash, Some(ciphertext))),
-            (Uniform::rand(rng), Output::Record(Uniform::rand(rng), Uniform::rand(rng), None)),
-            (Uniform::rand(rng), Output::Record(Uniform::rand(rng), record_checksum, Some(record_ciphertext))),
+            (Uniform::rand(rng), Output::Record(Uniform::rand(rng), Uniform::rand(rng), None, sender_ciphertext)),
+            (
+                Uniform::rand(rng),
+                Output::Record(Uniform::rand(rng), record_checksum, Some(record_ciphertext), sender_ciphertext),
+            ),
             (Uniform::rand(rng), Output::ExternalRecord(Uniform::rand(rng))),
         ]
     }

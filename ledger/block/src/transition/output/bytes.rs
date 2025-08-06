@@ -52,12 +52,31 @@ impl<N: Network> FromBytes for Output<N> {
                 let commitment = FromBytes::read_le(&mut reader)?;
                 let checksum = FromBytes::read_le(&mut reader)?;
                 let record_ciphertext_exists: bool = FromBytes::read_le(&mut reader)?;
-                let record_ciphertext = match record_ciphertext_exists {
+                let record_ciphertext: Option<Record<N, _>> = match record_ciphertext_exists {
                     true => Some(FromBytes::read_le(&mut reader)?),
                     false => None,
                 };
+                // If the record version is Version 1 or higher, read the sender ciphertext.
+                let sender_ciphertext = match &record_ciphertext {
+                    Some(record) => match record.version().is_zero() {
+                        true => None,
+                        false => {
+                            // Read the sender ciphertext version.
+                            let sender_ciphertext_version: u8 = FromBytes::read_le(&mut reader)?;
+                            // Ensure the sender ciphertext version is 0.
+                            if sender_ciphertext_version != 0 {
+                                return Err(error(format!(
+                                    "Failed to decode sender ciphertext version {sender_ciphertext_version}"
+                                )));
+                            }
+                            // Read the sender ciphertext.
+                            Some(FromBytes::read_le(&mut reader)?)
+                        }
+                    },
+                    None => None,
+                };
 
-                Self::Record(commitment, checksum, record_ciphertext)
+                Self::Record(commitment, checksum, record_ciphertext, sender_ciphertext)
             }
             4 => {
                 let commitment = FromBytes::read_le(&mut reader)?;
@@ -115,14 +134,29 @@ impl<N: Network> ToBytes for Output<N> {
                     None => false.write_le(&mut writer),
                 }
             }
-            Self::Record(commitment, checksum, record_ciphertext) => {
+            Self::Record(commitment, checksum, record_ciphertext, sender_ciphertext) => {
                 (3 as Variant).write_le(&mut writer)?;
                 commitment.write_le(&mut writer)?;
                 checksum.write_le(&mut writer)?;
                 match record_ciphertext {
                     Some(record) => {
                         true.write_le(&mut writer)?;
-                        record.write_le(&mut writer)
+                        record.write_le(&mut writer)?;
+                        // If the record version is Version 1 or higher, write the sender ciphertext.
+                        if !record.version().is_zero() {
+                            // Write the sender ciphertext version.
+                            0u8.write_le(&mut writer)?;
+                            // Write the sender ciphertext.
+                            match sender_ciphertext {
+                                Some(sender) => sender.write_le(&mut writer)?,
+                                None => {
+                                    return Err(error(
+                                        "Failed to encode sender ciphertext for non-zero version record",
+                                    ));
+                                }
+                            }
+                        }
+                        Ok(())
                     }
                     None => false.write_le(&mut writer),
                 }

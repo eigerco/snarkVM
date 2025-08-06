@@ -195,17 +195,29 @@ pub trait TransactionStorage<N: Network>: Clone + Send + Sync {
         })
     }
 
+    /// Returns the latest transaction ID that contains the given `program ID`.
+    fn find_latest_transaction_id_from_program_id(
+        &self,
+        program_id: &ProgramID<N>,
+    ) -> Result<Option<N::TransactionID>> {
+        self.deployment_store().find_latest_transaction_id_from_program_id(program_id)
+    }
+
+    /// Returns the transaction ID that contains the given `program ID` and `edition`.
+    fn find_transaction_id_from_program_id_and_edition(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> Result<Option<N::TransactionID>> {
+        self.deployment_store().find_transaction_id_from_program_id_and_edition(program_id, edition)
+    }
+
     /// Returns the transaction ID that contains the given `transition ID`.
     fn find_transaction_id_from_transition_id(
         &self,
         transition_id: &N::TransitionID,
     ) -> Result<Option<N::TransactionID>> {
         self.execution_store().find_transaction_id_from_transition_id(transition_id)
-    }
-
-    /// Returns the transaction ID that contains the given `program ID`.
-    fn find_transaction_id_from_program_id(&self, program_id: &ProgramID<N>) -> Result<Option<N::TransactionID>> {
-        self.deployment_store().find_transaction_id_from_program_id(program_id)
     }
 
     /// Returns the transaction for the given `transaction ID`.
@@ -356,6 +368,11 @@ impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
         }
     }
 
+    /// Returns the latest edition for the given `program ID`.
+    pub fn get_latest_edition_for_program(&self, program_id: &ProgramID<N>) -> Result<Option<u16>> {
+        self.storage.deployment_store().get_latest_edition_for_program(program_id)
+    }
+
     /// Returns the edition for the given `transaction ID`.
     pub fn get_edition(&self, transaction_id: &N::TransactionID) -> Result<Option<u16>> {
         // Retrieve the transaction type.
@@ -365,15 +382,7 @@ impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
         };
         // Retrieve the edition.
         match transaction_type {
-            TransactionType::Deploy => {
-                // Retrieve the program ID.
-                let program_id = self.storage.deployment_store().get_program_id(transaction_id)?;
-                // Return the edition.
-                match program_id {
-                    Some(program_id) => self.storage.deployment_store().get_edition(&program_id),
-                    None => bail!("Failed to get the program ID for deployment transaction '{transaction_id}'"),
-                }
-            }
+            TransactionType::Deploy => self.storage.deployment_store().get_edition_for_transaction(transaction_id),
             // Return 'None'.
             TransactionType::Execute => Ok(None),
             // Return 'None'.
@@ -386,34 +395,71 @@ impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
         self.storage.deployment_store().get_program_id(transaction_id)
     }
 
-    /// Returns the program for the given `program ID`.
-    pub fn get_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
-        self.storage.deployment_store().get_program(program_id)
+    /// Returns the latest program for the given `program ID`.
+    pub fn get_latest_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
+        self.storage.deployment_store().get_latest_program(program_id)
     }
 
-    /// Returns the verifying key for the given `(program ID, function name)`.
-    pub fn get_verifying_key(
+    /// Returns the program for the given `program ID` and `edition`.
+    pub fn get_program_for_edition(&self, program_id: &ProgramID<N>, edition: u16) -> Result<Option<Program<N>>> {
+        self.storage.deployment_store().get_program_for_edition(program_id, edition)
+    }
+
+    /// Returns the latest verifying key for the given `(program ID, function name)`.
+    pub fn get_latest_verifying_key(
         &self,
         program_id: &ProgramID<N>,
         function_name: &Identifier<N>,
     ) -> Result<Option<VerifyingKey<N>>> {
-        self.storage.deployment_store().get_verifying_key(program_id, function_name)
+        self.storage.deployment_store().get_latest_verifying_key(program_id, function_name)
     }
 
-    /// Returns the certificate for the given `(program ID, function name)`.
-    pub fn get_certificate(
+    /// Returns the verifying key for the given `(program ID, function name, edition)`.
+    pub fn get_verifying_key_with_edition(
+        &self,
+        program_id: &ProgramID<N>,
+        function_name: &Identifier<N>,
+        edition: u16,
+    ) -> Result<Option<VerifyingKey<N>>> {
+        self.storage.deployment_store().get_verifying_key_with_edition(program_id, function_name, edition)
+    }
+
+    /// Returns the latest certificate for the given `(program ID, function name)`.
+    pub fn get_latest_certificate(
         &self,
         program_id: &ProgramID<N>,
         function_name: &Identifier<N>,
     ) -> Result<Option<Certificate<N>>> {
-        self.storage.deployment_store().get_certificate(program_id, function_name)
+        self.storage.deployment_store().get_latest_certificate(program_id, function_name)
+    }
+
+    /// Returns the certificate for the given `(program ID, function name, edition)`.
+    pub fn get_certificate_with_edition(
+        &self,
+        program_id: &ProgramID<N>,
+        function_name: &Identifier<N>,
+        edition: u16,
+    ) -> Result<Option<Certificate<N>>> {
+        self.storage.deployment_store().get_certificate_with_edition(program_id, function_name, edition)
     }
 }
 
 impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
-    /// Returns the transaction ID that contains the given `program ID`.
-    pub fn find_transaction_id_from_program_id(&self, program_id: &ProgramID<N>) -> Result<Option<N::TransactionID>> {
-        self.storage.deployment_store().find_transaction_id_from_program_id(program_id)
+    /// Returns the latest transaction ID that contains the given `program ID`.
+    pub fn find_latest_transaction_id_from_program_id(
+        &self,
+        program_id: &ProgramID<N>,
+    ) -> Result<Option<N::TransactionID>> {
+        self.storage.deployment_store().find_latest_transaction_id_from_program_id(program_id)
+    }
+
+    /// Returns the transaction ID that contains the given `program ID` and `edition`.
+    pub fn find_transaction_id_from_program_id_and_edition(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> Result<Option<N::TransactionID>> {
+        self.storage.deployment_store().find_transaction_id_from_program_id_and_edition(program_id, edition)
     }
 
     /// Returns the transaction ID that contains the given `transition ID`.
@@ -435,8 +481,14 @@ impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
     pub fn contains_program_id(&self, program_id: &ProgramID<N>) -> Result<bool> {
         self.storage.deployment_store().contains_program_id(program_id)
     }
+
+    /// Returns `true` if the given program ID and edition exists.
+    pub fn contains_program_id_and_edition(&self, program_id: &ProgramID<N>, edition: u16) -> Result<bool> {
+        self.storage.deployment_store().contains_program_id_and_edition(program_id, edition)
+    }
 }
 
+type ProgramIDEdition<N> = (ProgramID<N>, u16);
 type ProgramTriplet<N> = (ProgramID<N>, Identifier<N>, u16);
 
 impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
@@ -456,13 +508,27 @@ impl<N: Network, T: TransactionStorage<N>> TransactionStore<N, T> {
     }
 
     /// Returns an iterator over the program IDs, for all deployments.
+    /// Note: If a program upgraded, this method will return duplicates of the program ID.
     pub fn program_ids(&self) -> impl '_ + Iterator<Item = Cow<'_, ProgramID<N>>> {
         self.storage.deployment_store().program_ids()
     }
 
+    /// Returns an iterator over the program IDs and latest editions.
+    pub fn program_ids_and_latest_editions(&self) -> impl '_ + Iterator<Item = (Cow<'_, ProgramID<N>>, Cow<'_, u16>)> {
+        self.storage.deployment_store().program_ids_and_latest_editions()
+    }
+
     /// Returns an iterator over the programs, for all deployments.
+    /// If a program has been upgraded, all instances of the program will be returned.
     pub fn programs(&self) -> impl '_ + Iterator<Item = Cow<'_, Program<N>>> {
         self.storage.deployment_store().programs()
+    }
+
+    /// Returns an iterator over the programs and editions, for all deployments.
+    pub fn programs_with_editions(
+        &self,
+    ) -> impl '_ + Iterator<Item = (Cow<'_, ProgramIDEdition<N>>, Cow<'_, Program<N>>)> {
+        self.storage.deployment_store().programs_with_editions()
     }
 
     /// Returns an iterator over the `((program ID, function name, edition), verifying key)`, for all deployments.
@@ -487,8 +553,8 @@ mod tests {
 
         // Sample the transactions.
         for transaction in [
-            ledger_test_helpers::sample_deployment_transaction(true, rng),
-            ledger_test_helpers::sample_deployment_transaction(false, rng),
+            ledger_test_helpers::sample_deployment_transaction(0, true, rng),
+            ledger_test_helpers::sample_deployment_transaction(0, false, rng),
             ledger_test_helpers::sample_execution_transaction_with_fee(true, rng),
             ledger_test_helpers::sample_execution_transaction_with_fee(false, rng),
             ledger_test_helpers::sample_fee_private_transaction(rng),
@@ -528,8 +594,8 @@ mod tests {
 
         // Sample the transactions.
         for transaction in [
-            ledger_test_helpers::sample_deployment_transaction(true, rng),
-            ledger_test_helpers::sample_deployment_transaction(false, rng),
+            ledger_test_helpers::sample_deployment_transaction(0, true, rng),
+            ledger_test_helpers::sample_deployment_transaction(0, false, rng),
             ledger_test_helpers::sample_execution_transaction_with_fee(true, rng),
             ledger_test_helpers::sample_execution_transaction_with_fee(false, rng),
             ledger_test_helpers::sample_fee_private_transaction(rng),

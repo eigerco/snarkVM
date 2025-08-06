@@ -106,6 +106,7 @@ pub enum CommitteeMap {
 #[repr(u16)]
 pub enum DeploymentMap {
     ID = DataID::DeploymentIDMap as u16,
+    IDEdition = DataID::IDEditionMap as u16,
     Edition = DataID::DeploymentEditionMap as u16,
     ReverseID = DataID::DeploymentReverseIDMap as u16,
     Owner = DataID::DeploymentOwnerMap as u16,
@@ -164,6 +165,7 @@ pub enum TransitionOutputMap {
     Private = DataID::OutputPrivateMap as u16,
     Record = DataID::OutputRecordMap as u16,
     RecordNonce = DataID::OutputRecordNonceMap as u16,
+    RecordSender = DataID::OutputRecordSenderMap as u16,
     ExternalRecord = DataID::OutputExternalRecordMap as u16,
     Future = DataID::OutputFutureMap as u16,
 }
@@ -293,6 +295,11 @@ enum DataID {
     // Program
     ProgramIDMap,
     KeyValueMap,
+
+    // For Backwards Compatibility with Existing Databases
+    OutputRecordSenderMap,
+    // Track edition based on transaction ID
+    IDEditionMap,
 
     // Testing
     #[cfg(test)]

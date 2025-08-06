@@ -20,24 +20,25 @@ use crate::{
 };
 use console::{
     network::prelude::*,
-    program::{Literal, LiteralType, Plaintext, PlaintextType, Register, RegisterType, Value},
+    program::{Literal, LiteralType, Plaintext, PlaintextType, Register, RegisterType, Scalar, Value},
 };
 
 /// BHP256 is a collision-resistant function that processes inputs in 256-bit chunks.
-pub type CommitBHP256<N> = CommitInstruction<N, { Committer::CommitBHP256 as u8 }>;
+pub type CommitBHP256<N> = CommitInstruction<N, { CommitVariant::CommitBHP256 as u8 }>;
 /// BHP512 is a collision-resistant function that processes inputs in 512-bit chunks.
-pub type CommitBHP512<N> = CommitInstruction<N, { Committer::CommitBHP512 as u8 }>;
+pub type CommitBHP512<N> = CommitInstruction<N, { CommitVariant::CommitBHP512 as u8 }>;
 /// BHP768 is a collision-resistant function that processes inputs in 768-bit chunks.
-pub type CommitBHP768<N> = CommitInstruction<N, { Committer::CommitBHP768 as u8 }>;
+pub type CommitBHP768<N> = CommitInstruction<N, { CommitVariant::CommitBHP768 as u8 }>;
 /// BHP1024 is a collision-resistant function that processes inputs in 1024-bit chunks.
-pub type CommitBHP1024<N> = CommitInstruction<N, { Committer::CommitBHP1024 as u8 }>;
+pub type CommitBHP1024<N> = CommitInstruction<N, { CommitVariant::CommitBHP1024 as u8 }>;
 
 /// Pedersen64 is a collision-resistant function that processes inputs in 64-bit chunks.
-pub type CommitPED64<N> = CommitInstruction<N, { Committer::CommitPED64 as u8 }>;
+pub type CommitPED64<N> = CommitInstruction<N, { CommitVariant::CommitPED64 as u8 }>;
 /// Pedersen128 is a collision-resistant function that processes inputs in 128-bit chunks.
-pub type CommitPED128<N> = CommitInstruction<N, { Committer::CommitPED128 as u8 }>;
+pub type CommitPED128<N> = CommitInstruction<N, { CommitVariant::CommitPED128 as u8 }>;
 
-enum Committer {
+/// Which commit function to use.
+pub enum CommitVariant {
     CommitBHP256,
     CommitBHP512,
     CommitBHP768,
@@ -110,6 +111,50 @@ impl<N: Network, const VARIANT: u8> CommitInstruction<N, VARIANT> {
     }
 }
 
+// This code is nearly identical in `execute` and `evaluate`; we
+// extract it here in a macro.
+//
+// The `$q` parameter allows us to wrap a value in `Result::Ok`, since
+// the `Aleo` functions don't return a `Result` but the `Network` ones do.
+macro_rules! do_commit {
+    ($N: ident, $variant: expr, $destination_type: expr, $input: expr, $randomizer: expr, $ty: ty, $q: expr) => {{
+        let func = match $variant {
+            0 => $N::commit_to_group_bhp256,
+            1 => $N::commit_to_group_bhp512,
+            2 => $N::commit_to_group_bhp768,
+            3 => $N::commit_to_group_bhp1024,
+            4 => $N::commit_to_group_ped64,
+            5 => $N::commit_to_group_ped128,
+            6.. => bail!("Invalid 'commit' variant: {}", $variant),
+        };
+
+        let literal_output: $ty = $q(func(&$input.to_bits_le(), $randomizer))?.into();
+        literal_output.cast_lossy($destination_type)?
+    }};
+}
+
+/// Evaluate a commit operation.
+///
+/// This allows running the commit without the machinery of stacks and registers.
+/// This is necessary for the Leo interpeter.
+pub fn evaluate_commit<N: Network>(
+    variant: CommitVariant,
+    input: &Value<N>,
+    randomizer: &Scalar<N>,
+    destination_type: LiteralType,
+) -> Result<Literal<N>> {
+    evaluate_commit_internal(variant as u8, input, randomizer, destination_type)
+}
+
+fn evaluate_commit_internal<N: Network>(
+    variant: u8,
+    input: &Value<N>,
+    randomizer: &Scalar<N>,
+    destination_type: LiteralType,
+) -> Result<Literal<N>> {
+    Ok(do_commit!(N, variant, destination_type, input, randomizer, Literal<N>, |x| x))
+}
+
 impl<N: Network, const VARIANT: u8> CommitInstruction<N, VARIANT> {
     /// Evaluates the instruction.
     #[inline]
@@ -134,18 +179,8 @@ impl<N: Network, const VARIANT: u8> CommitInstruction<N, VARIANT> {
             _ => bail!("Invalid randomizer type for the commit evaluation, expected a scalar"),
         };
 
-        // Commit the input.
-        let output = match VARIANT {
-            0 => Literal::Group(N::commit_to_group_bhp256(&input.to_bits_le(), &randomizer)?),
-            1 => Literal::Group(N::commit_to_group_bhp512(&input.to_bits_le(), &randomizer)?),
-            2 => Literal::Group(N::commit_to_group_bhp768(&input.to_bits_le(), &randomizer)?),
-            3 => Literal::Group(N::commit_to_group_bhp1024(&input.to_bits_le(), &randomizer)?),
-            4 => Literal::Group(N::commit_to_group_ped64(&input.to_bits_le(), &randomizer)?),
-            5 => Literal::Group(N::commit_to_group_ped128(&input.to_bits_le(), &randomizer)?),
-            6.. => bail!("Invalid 'commit' variant: {VARIANT}"),
-        };
-        // Cast the output to the destination type.
-        let output = output.cast_lossy(self.destination_type)?;
+        let output = evaluate_commit_internal(VARIANT, &input, &randomizer, self.destination_type)?;
+
         // Store the output.
         registers.store(stack, &self.destination, Value::Plaintext(Plaintext::from(output)))
     }
@@ -177,17 +212,9 @@ impl<N: Network, const VARIANT: u8> CommitInstruction<N, VARIANT> {
             _ => bail!("Invalid randomizer type for the commit execution, expected a scalar"),
         };
 
-        // Commits the input.
-        let output = match VARIANT {
-            0 => circuit::Literal::Group(A::commit_to_group_bhp256(&input.to_bits_le(), &randomizer)),
-            1 => circuit::Literal::Group(A::commit_to_group_bhp512(&input.to_bits_le(), &randomizer)),
-            2 => circuit::Literal::Group(A::commit_to_group_bhp768(&input.to_bits_le(), &randomizer)),
-            3 => circuit::Literal::Group(A::commit_to_group_bhp1024(&input.to_bits_le(), &randomizer)),
-            4 => circuit::Literal::Group(A::commit_to_group_ped64(&input.to_bits_le(), &randomizer)),
-            5 => circuit::Literal::Group(A::commit_to_group_ped128(&input.to_bits_le(), &randomizer)),
-            6.. => bail!("Invalid 'commit' variant: {VARIANT}"),
-        };
-        let output = output.cast_lossy(self.destination_type)?;
+        let output =
+            do_commit!(A, VARIANT, self.destination_type, &input, &randomizer, circuit::Literal<A>, Result::<_>::Ok);
+
         // Convert the output to a stack value.
         let output = circuit::Value::Plaintext(circuit::Plaintext::Literal(output, Default::default()));
         // Store the output.

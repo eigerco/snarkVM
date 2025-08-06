@@ -41,6 +41,8 @@ lazy_static! {
     /// The Varuna sponge parameters.
     static ref VARUNA_FS_PARAMETERS: FiatShamirParameters<TestnetV0> = FiatShamir::<TestnetV0>::sample_parameters();
 
+    /// The commitment domain as a constant field element.
+    static ref COMMITMENT_DOMAIN: Field<TestnetV0> = Field::<TestnetV0>::new_domain_separator("AleoCommitment0");
     /// The encryption domain as a constant field element.
     static ref ENCRYPTION_DOMAIN: Field<TestnetV0> = Field::<TestnetV0>::new_domain_separator("AleoSymmetricEncryption0");
     /// The graph key domain as a constant field element.
@@ -68,6 +70,17 @@ lazy_static! {
     pub static ref TESTNET_POSEIDON_4: Poseidon4<TestnetV0> = Poseidon4::<TestnetV0>::setup("AleoPoseidon4").expect("Failed to setup Poseidon4");
     /// The Poseidon hash function, using a rate of 8.
     pub static ref TESTNET_POSEIDON_8: Poseidon8<TestnetV0> = Poseidon8::<TestnetV0>::setup("AleoPoseidon8").expect("Failed to setup Poseidon8");
+
+    pub static ref TESTNET_CREDITS_V0_PROVING_KEYS: IndexMap<String, Arc<VarunaProvingKey<Console>>> = {
+        let mut map = IndexMap::new();
+        snarkvm_parameters::insert_testnet_credit_v0_keys!(map, VarunaProvingKey<Console>, Prover);
+        map
+    };
+    pub static ref TESTNET_CREDITS_V0_VERIFYING_KEYS: IndexMap<String, Arc<VarunaVerifyingKey<Console>>> = {
+        let mut map = IndexMap::new();
+        snarkvm_parameters::insert_testnet_credit_v0_keys!(map, VarunaVerifyingKey<Console>, Verifier);
+        map
+    };
 
     pub static ref TESTNET_CREDITS_PROVING_KEYS: IndexMap<String, Arc<VarunaProvingKey<Console>>> = {
         let mut map = IndexMap::new();
@@ -136,7 +149,7 @@ impl Network for TestnetV0 {
     /// A list of (consensus_version, block_height) pairs indicating when each consensus version takes effect.
     /// Documentation for what is changed at each version can be found in `ConsensusVersion`.
     #[cfg(not(any(test, feature = "test", feature = "test_consensus_heights")))]
-    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 7] = [
+    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 8] = [
         (ConsensusVersion::V1, 0),
         (ConsensusVersion::V2, 2_950_000),
         (ConsensusVersion::V3, 4_800_000),
@@ -144,11 +157,12 @@ impl Network for TestnetV0 {
         (ConsensusVersion::V5, 6_765_000),
         (ConsensusVersion::V6, 7_600_000),
         (ConsensusVersion::V7, 8_365_000),
+        (ConsensusVersion::V8, 9_173_000),
     ];
     /// A list of (consensus_version, block_height) pairs indicating when each consensus version takes effect.
     /// Documentation for what is changed at each version can be found in `ConsensusVersion`.
     #[cfg(any(test, feature = "test", feature = "test_consensus_heights"))]
-    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 7] = [
+    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 8] = [
         (ConsensusVersion::V1, 0),
         (ConsensusVersion::V2, 10),
         (ConsensusVersion::V3, 11),
@@ -156,6 +170,7 @@ impl Network for TestnetV0 {
         (ConsensusVersion::V5, 13),
         (ConsensusVersion::V6, 14),
         (ConsensusVersion::V7, 15),
+        (ConsensusVersion::V8, 16),
     ];
     /// The network edition.
     const EDITION: u16 = 0;
@@ -174,7 +189,7 @@ impl Network for TestnetV0 {
     /// The network ID.
     const ID: u16 = 1;
     /// The function name for the inclusion circuit.
-    const INCLUSION_FUNCTION_NAME: &'static str = MainnetV0::INCLUSION_FUNCTION_NAME;
+    const INCLUSION_FUNCTION_NAME: &'static str = snarkvm_parameters::testnet::NETWORK_INCLUSION_FUNCTION_NAME;
     /// A list of (consensus_version, size) pairs indicating the maximum number of certificates in a batch.
     #[cfg(not(any(test, feature = "test")))]
     const MAX_CERTIFICATES: [(ConsensusVersion, u16); 4] = [
@@ -194,6 +209,12 @@ impl Network for TestnetV0 {
     /// The network name.
     const NAME: &'static str = "Aleo Testnet (v0)";
 
+    /// Returns the block height where the the inclusion proof will be updated.
+    #[allow(non_snake_case)]
+    fn INCLUSION_UPGRADE_HEIGHT() -> Result<u32> {
+        Self::CONSENSUS_HEIGHT(ConsensusVersion::V8)
+    }
+
     /// Returns the genesis block bytes.
     fn genesis_bytes() -> &'static [u8] {
         snarkvm_parameters::testnet::GenesisBytes::load_bytes()
@@ -202,6 +223,20 @@ impl Network for TestnetV0 {
     /// Returns the restrictions list as a JSON-compatible string.
     fn restrictions_list_as_str() -> &'static str {
         snarkvm_parameters::testnet::RESTRICTIONS_LIST
+    }
+
+    /// Returns the proving key for the given function name in the v0 version of `credits.aleo`.
+    fn get_credits_v0_proving_key(function_name: String) -> Result<&'static Arc<VarunaProvingKey<Self>>> {
+        TESTNET_CREDITS_V0_PROVING_KEYS
+            .get(&function_name)
+            .ok_or_else(|| anyhow!("Proving key (v0) for credits.aleo/{function_name}' not found"))
+    }
+
+    /// Returns the verifying key for the given function name in the v0 version of `credits.aleo`.
+    fn get_credits_v0_verifying_key(function_name: String) -> Result<&'static Arc<VarunaVerifyingKey<Self>>> {
+        TESTNET_CREDITS_V0_VERIFYING_KEYS
+            .get(&function_name)
+            .ok_or_else(|| anyhow!("Verifying key (v0) for credits_v0.aleo/{function_name}' not found"))
     }
 
     /// Returns the proving key for the given function name in `credits.aleo`.
@@ -216,6 +251,30 @@ impl Network for TestnetV0 {
         TESTNET_CREDITS_VERIFYING_KEYS
             .get(&function_name)
             .ok_or_else(|| anyhow!("Verifying key for credits.aleo/{function_name}' not found"))
+    }
+
+    /// Returns the `proving key` for the inclusion circuit.
+    fn inclusion_v0_proving_key() -> &'static Arc<VarunaProvingKey<Self>> {
+        static INSTANCE: OnceCell<Arc<VarunaProvingKey<Console>>> = OnceCell::new();
+        INSTANCE.get_or_init(|| {
+            // Skipping the first byte, which is the encoded version.
+            Arc::new(
+                CircuitProvingKey::from_bytes_le(&snarkvm_parameters::testnet::INCLUSION_V0_PROVING_KEY[1..])
+                    .expect("Failed to load inclusion_v0 proving key."),
+            )
+        })
+    }
+
+    /// Returns the `verifying key` for the inclusion circuit.
+    fn inclusion_v0_verifying_key() -> &'static Arc<VarunaVerifyingKey<Self>> {
+        static INSTANCE: OnceCell<Arc<VarunaVerifyingKey<Console>>> = OnceCell::new();
+        INSTANCE.get_or_init(|| {
+            // Skipping the first byte, which is the encoded version.
+            Arc::new(
+                CircuitVerifyingKey::from_bytes_le(&snarkvm_parameters::testnet::INCLUSION_V0_VERIFYING_KEY[1..])
+                    .expect("Failed to load inclusion_v0 verifying key."),
+            )
+        })
     }
 
     /// Returns the `proving key` for the inclusion circuit.
@@ -272,6 +331,11 @@ impl Network for TestnetV0 {
     /// Returns the sponge parameters used for the sponge in the Varuna SNARK.
     fn varuna_fs_parameters() -> &'static FiatShamirParameters<Self> {
         &VARUNA_FS_PARAMETERS
+    }
+
+    /// Returns the commitment domain as a constant field element.
+    fn commitment_domain() -> Field<Self> {
+        *COMMITMENT_DOMAIN
     }
 
     /// Returns the encryption domain as a constant field element.

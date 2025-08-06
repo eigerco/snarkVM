@@ -31,8 +31,8 @@ pub enum InputID<A: Aleo> {
     Public(Field<A>),
     /// The ciphertext hash of the private input.
     Private(Field<A>),
-    /// The `(commitment, gamma, serial_number, tag)` tuple of the record input.
-    Record(Field<A>, Box<Group<A>>, Field<A>, Field<A>),
+    /// The `(commitment, gamma, record_view_key, serial_number, tag)` tuple of the record input.
+    Record(Field<A>, Box<Group<A>>, Field<A>, Field<A>, Field<A>),
     /// The hash of the external record input.
     ExternalRecord(Field<A>),
 }
@@ -50,10 +50,11 @@ impl<A: Aleo> Inject for InputID<A> {
             console::InputID::Public(field) => Self::Public(Field::new(Mode::Public, field)),
             // Inject the ciphertext hash as `Mode::Public`.
             console::InputID::Private(field) => Self::Private(Field::new(Mode::Public, field)),
-            // Inject commitment and gamma as `Mode::Private`, and the expected serial number and tag as `Mode::Public`.
-            console::InputID::Record(commitment, gamma, serial_number, tag) => Self::Record(
+            // Inject commitment, gamma, and record view key as `Mode::Private`, and the expected serial number and tag as `Mode::Public`.
+            console::InputID::Record(commitment, gamma, record_view_key, serial_number, tag) => Self::Record(
                 Field::new(Mode::Private, commitment),
                 Box::new(Group::new(Mode::Private, gamma)),
+                Field::new(Mode::Private, record_view_key),
                 Field::new(Mode::Public, serial_number),
                 Field::new(Mode::Public, tag),
             ),
@@ -73,11 +74,14 @@ impl<A: Aleo> Eject for InputID<A> {
             Self::Constant(field) => field.eject_mode(),
             Self::Public(field) => field.eject_mode(),
             Self::Private(field) => field.eject_mode(),
-            Self::Record(commitment, gamma, serial_number, tag) => Mode::combine(commitment.eject_mode(), [
-                gamma.eject_mode(),
-                serial_number.eject_mode(),
-                tag.eject_mode(),
-            ]),
+            Self::Record(commitment, gamma, record_view_key, serial_number, tag) => {
+                Mode::combine(commitment.eject_mode(), [
+                    gamma.eject_mode(),
+                    record_view_key.eject_mode(),
+                    serial_number.eject_mode(),
+                    tag.eject_mode(),
+                ])
+            }
             Self::ExternalRecord(field) => field.eject_mode(),
         }
     }
@@ -88,9 +92,10 @@ impl<A: Aleo> Eject for InputID<A> {
             Self::Constant(field) => console::InputID::Constant(field.eject_value()),
             Self::Public(field) => console::InputID::Public(field.eject_value()),
             Self::Private(field) => console::InputID::Private(field.eject_value()),
-            Self::Record(commitment, gamma, serial_number, tag) => console::InputID::Record(
+            Self::Record(commitment, gamma, record_view_key, serial_number, tag) => console::InputID::Record(
                 commitment.eject_value(),
                 gamma.eject_value(),
+                record_view_key.eject_value(),
                 serial_number.eject_value(),
                 tag.eject_value(),
             ),
@@ -108,8 +113,14 @@ impl<A: Aleo> ToFields for InputID<A> {
             InputID::Constant(field) => vec![field.clone()],
             InputID::Public(field) => vec![field.clone()],
             InputID::Private(field) => vec![field.clone()],
-            InputID::Record(commitment, gamma, serial_number, tag) => {
-                vec![commitment.clone(), gamma.to_x_coordinate(), serial_number.clone(), tag.clone()]
+            InputID::Record(commitment, gamma, record_view_key, serial_number, tag) => {
+                vec![
+                    commitment.clone(),
+                    gamma.to_x_coordinate(),
+                    record_view_key.clone(),
+                    serial_number.clone(),
+                    tag.clone(),
+                ]
             }
             InputID::ExternalRecord(field) => vec![field.clone()],
         }

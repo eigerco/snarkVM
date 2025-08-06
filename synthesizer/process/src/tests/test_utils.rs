@@ -245,7 +245,7 @@ fn execute_function<F: FinalizeStorage<CurrentNetwork>>(
     let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(0u16)?;
 
     // Prepare the trace.
-    trace.prepare(Query::from(&block_store))?;
+    trace.prepare(&Query::from(&block_store))?;
 
     // Prove the execution.
     let execution = trace.prove_execution::<CurrentAleo, _>(function, VarunaVersion::V1, rng)?;

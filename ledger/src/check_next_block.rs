@@ -109,6 +109,21 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             ratified_finalize_operations,
         )?;
 
+        // Ensure that the provers are within their stake bounds.
+        if let Some(solutions) = block.solutions().deref() {
+            let mut accepted_solutions: IndexMap<Address<N>, u64> = IndexMap::new();
+            for solution in solutions.values() {
+                let prover_address = solution.address();
+                let num_accepted_solutions = *accepted_solutions.get(&prover_address).unwrap_or(&0);
+                // Check if the prover has reached their solution limit.
+                if self.is_solution_limit_reached(&prover_address, num_accepted_solutions) {
+                    bail!("Prover '{prover_address}' has reached their solution limit for the current epoch");
+                }
+                // Track the already accepted solutions.
+                *accepted_solutions.entry(prover_address).or_insert(0) += 1;
+            }
+        }
+
         // Ensure the certificates in the block subdag have met quorum requirements.
         self.check_block_subdag_quorum(block)?;
 

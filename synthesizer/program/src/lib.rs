@@ -92,9 +92,14 @@ use console::{
     },
     program::{Identifier, PlaintextType, ProgramID, RecordType, StructType},
 };
+use snarkvm_utilities::cfg_iter;
 
+use console::prelude::Itertools;
 use indexmap::{IndexMap, IndexSet};
 use std::collections::BTreeSet;
+
+#[cfg(not(feature = "serial"))]
+use rayon::prelude::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum ProgramDefinition {
@@ -110,14 +115,14 @@ enum ProgramDefinition {
     Function,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ProgramCore<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> {
     /// The ID of the program.
     id: ProgramID<N>,
     /// A map of the declared imports for the program.
     imports: IndexMap<ProgramID<N>, Import<N>>,
     /// A map of identifiers to their program declaration.
-    identifiers: IndexMap<Identifier<N>, ProgramDefinition>,
+    components: IndexMap<Identifier<N>, ProgramDefinition>,
     /// A map of the declared mappings for the program.
     mappings: IndexMap<Identifier<N>, Mapping<N>>,
     /// A map of the declared structs for the program.
@@ -130,6 +135,38 @@ pub struct ProgramCore<N: Network, Instruction: InstructionTrait<N>, Command: Co
     functions: IndexMap<Identifier<N>, FunctionCore<N, Instruction, Command>>,
 }
 
+impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> PartialEq
+    for ProgramCore<N, Instruction, Command>
+{
+    /// Compares two programs for equality, verifying that the components are in the same order.
+    /// The order of the components must match to ensure that deployment tree is well-formed.
+    fn eq(&self, other: &Self) -> bool {
+        // Check that the number of components is the same.
+        if self.components.len() != other.components.len() {
+            return false;
+        }
+        // Check that the components match in order.
+        for (left, right) in self.components.iter().zip_eq(other.components.iter()) {
+            if left != right {
+                return false;
+            }
+        }
+        // Check that the remaining fields match.
+        self.id == other.id
+            && self.imports == other.imports
+            && self.mappings == other.mappings
+            && self.structs == other.structs
+            && self.records == other.records
+            && self.closures == other.closures
+            && self.functions == other.functions
+    }
+}
+
+impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Eq
+    for ProgramCore<N, Instruction, Command>
+{
+}
+
 impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> ProgramCore<N, Instruction, Command> {
     /// Initializes an empty program.
     #[inline]
@@ -140,7 +177,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         Ok(Self {
             id,
             imports: IndexMap::new(),
-            identifiers: IndexMap::new(),
+            components: IndexMap::new(),
             mappings: IndexMap::new(),
             structs: IndexMap::new(),
             records: IndexMap::new(),
@@ -347,7 +384,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         ensure!(!Self::is_reserved_opcode(&mapping_name.to_string()), "'{mapping_name}' is a reserved opcode.");
 
         // Add the mapping name to the identifiers.
-        if self.identifiers.insert(mapping_name, ProgramDefinition::Mapping).is_some() {
+        if self.components.insert(mapping_name, ProgramDefinition::Mapping).is_some() {
             bail!("'{mapping_name}' already exists in the program.")
         }
         // Add the mapping to the program.
@@ -408,7 +445,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         }
 
         // Add the struct name to the identifiers.
-        if self.identifiers.insert(struct_name, ProgramDefinition::Struct).is_some() {
+        if self.components.insert(struct_name, ProgramDefinition::Struct).is_some() {
             bail!("'{}' already exists in the program.", struct_name)
         }
         // Add the struct to the program.
@@ -465,7 +502,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         }
 
         // Add the record name to the identifiers.
-        if self.identifiers.insert(record_name, ProgramDefinition::Record).is_some() {
+        if self.components.insert(record_name, ProgramDefinition::Record).is_some() {
             bail!("'{record_name}' already exists in the program.")
         }
         // Add the record to the program.
@@ -513,7 +550,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         ensure!(closure.outputs().len() <= N::MAX_OUTPUTS, "Closure exceeds maximum number of outputs");
 
         // Add the function name to the identifiers.
-        if self.identifiers.insert(closure_name, ProgramDefinition::Closure).is_some() {
+        if self.components.insert(closure_name, ProgramDefinition::Closure).is_some() {
             bail!("'{closure_name}' already exists in the program.")
         }
         // Add the closure to the program.
@@ -559,7 +596,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
         ensure!(function.outputs().len() <= N::MAX_OUTPUTS, "Function exceeds maximum number of outputs");
 
         // Add the function name to the identifiers.
-        if self.identifiers.insert(function_name, ProgramDefinition::Function).is_some() {
+        if self.components.insert(function_name, ProgramDefinition::Function).is_some() {
             bail!("'{function_name}' already exists in the program.")
         }
         // Add the function to the program.
@@ -660,7 +697,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
 
     /// Returns `true` if the given name does not already exist in the program.
     fn is_unique_name(&self, name: &Identifier<N>) -> bool {
-        !self.identifiers.contains_key(name)
+        !self.components.contains_key(name)
     }
 
     /// Returns `true` if the given name is a reserved opcode.
@@ -700,7 +737,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
             bail!("Program name '{program_name}' is a restricted keyword for the current consensus version")
         }
         // Check that all top-level program components are not restricted keywords.
-        for identifier in self.identifiers.keys() {
+        for identifier in self.components.keys() {
             if keywords.contains(identifier.to_string().as_str()) {
                 bail!("Program component '{identifier}' is a restricted keyword for the current consensus version")
             }
@@ -740,7 +777,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
 }
 
 impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> ProgramCore<N, Instruction, Command> {
-    /// Returns `true` if the program structure is well formed under the following rules:
+    /// Checks that the program structure is well-formed under the following rules:
     ///  1. The program ID must not contain the keyword "aleo" in the program name.
     ///  2. The record name must not contain the keyword "aleo".
     ///  3. Record names must not be prefixes of other record names.
@@ -781,6 +818,21 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Pro
             }
         }
 
+        Ok(())
+    }
+
+    /// Checks that the program does not make external calls to `credits.aleo/upgrade`.
+    pub fn check_external_calls_to_credits_upgrade(&self) -> Result<()> {
+        // Check if the program makes external calls to `credits.aleo/upgrade`.
+        cfg_iter!(self.functions()).flat_map(|(_, function)| function.instructions()).try_for_each(|instruction| {
+            if let Some(CallOperator::Locator(locator)) = instruction.call_operator() {
+                // Check if the locator is restricted.
+                if locator.to_string() == "credits.aleo/upgrade" {
+                    bail!("External call to restricted locator '{}'", locator)
+                }
+            }
+            Ok(())
+        })?;
         Ok(())
     }
 }

@@ -105,12 +105,17 @@ pub mod test_helpers {
     type CurrentNetwork = MainnetV0;
 
     /// Samples a rejected deployment.
-    pub(crate) fn sample_rejected_deployment(is_fee_private: bool, rng: &mut TestRng) -> Rejected<CurrentNetwork> {
+    pub(crate) fn sample_rejected_deployment(
+        edition: u16,
+        is_fee_private: bool,
+        rng: &mut TestRng,
+    ) -> Rejected<CurrentNetwork> {
         // Sample a deploy transaction.
-        let deployment = match crate::transaction::test_helpers::sample_deployment_transaction(is_fee_private, rng) {
-            Transaction::Deploy(_, _, _, deployment, _) => (*deployment).clone(),
-            _ => unreachable!(),
-        };
+        let deployment =
+            match crate::transaction::test_helpers::sample_deployment_transaction(edition, is_fee_private, rng) {
+                Transaction::Deploy(_, _, _, deployment, _) => (*deployment).clone(),
+                _ => unreachable!(),
+            };
 
         // Sample a new program owner.
         let private_key = PrivateKey::new(rng).unwrap();
@@ -139,8 +144,8 @@ pub mod test_helpers {
         let rng = &mut TestRng::default();
 
         vec![
-            sample_rejected_deployment(true, rng),
-            sample_rejected_deployment(false, rng),
+            sample_rejected_deployment(0, true, rng),
+            sample_rejected_deployment(0, false, rng),
             sample_rejected_execution(true, rng),
             sample_rejected_execution(false, rng),
         ]

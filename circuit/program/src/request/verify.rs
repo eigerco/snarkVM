@@ -211,7 +211,7 @@ impl<A: Aleo> Request<A> {
                         input_hash.is_equal(&A::hash_psd8(&ciphertext.to_fields()))
                     }
                     // A record input is computed to its serial number.
-                    InputID::Record(commitment, gamma, serial_number, tag) => {
+                    InputID::Record(commitment, gamma, record_view_key, serial_number, tag) => {
                         // Retrieve the record.
                         let record = match &input {
                             Value::Record(record) => record,
@@ -226,7 +226,7 @@ impl<A: Aleo> Request<A> {
                             _ => A::halt(format!("Expected a record input at input {index}")),
                         };
                         // Compute the record commitment.
-                        let candidate_commitment = record.to_commitment(program_id, &record_name);
+                        let candidate_commitment = record.to_commitment(program_id, &record_name, record_view_key);
                         // Compute the `candidate_serial_number` from `gamma`.
                         let candidate_serial_number =
                             Record::<A, Plaintext<A>>::serial_number_from_gamma(gamma, candidate_commitment.clone());
@@ -337,8 +337,9 @@ mod tests {
             let function_name = console::Identifier::from_str("transfer")?;
 
             // Prepare a record belonging to the address.
-            let record_string =
-                format!("{{ owner: {address}.private, token_amount: 100u64.private, _nonce: 0group.public }}");
+            let record_string = format!(
+                "{{ owner: {address}.private, token_amount: 100u64.private, _nonce: 0group.public, _version: 1u8.public }}"
+            );
 
             // Construct the inputs.
             let input_constant =
@@ -424,16 +425,16 @@ mod tests {
         // Note: This is correct. At this (high) level of a program, we override the default mode in the `Record` case,
         // based on the user-defined visibility in the record type. Thus, we have nonzero private and constraint values.
         // These bounds are determined experimentally.
-        check_verify(Mode::Constant, 43000, 0, 18000, 18000)
+        check_verify(Mode::Constant, 45000, 0, 22000, 22000)
     }
 
     #[test]
     fn test_sign_and_verify_public() -> Result<()> {
-        check_verify(Mode::Public, 40131, 0, 26675, 26702)
+        check_verify(Mode::Public, 40938, 0, 30031, 30062)
     }
 
     #[test]
     fn test_sign_and_verify_private() -> Result<()> {
-        check_verify(Mode::Private, 40131, 0, 26675, 26702)
+        check_verify(Mode::Private, 40938, 0, 30031, 30062)
     }
 }

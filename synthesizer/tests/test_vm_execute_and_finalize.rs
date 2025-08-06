@@ -43,9 +43,9 @@ use rayon::prelude::*;
 use utilities::*;
 
 #[cfg(not(feature = "rocks"))]
-type LedgerType<N> = ledger_store::helpers::memory::ConsensusMemory<N>;
+type LedgerType = ledger_store::helpers::memory::ConsensusMemory<CurrentNetwork>;
 #[cfg(feature = "rocks")]
-type LedgerType<N> = ledger_store::helpers::rocksdb::ConsensusDB<N>;
+type LedgerType = ledger_store::helpers::rocksdb::ConsensusDB<CurrentNetwork>;
 
 #[test]
 fn test_vm_execute_and_finalize() {
@@ -371,9 +371,9 @@ fn run_test(test: &ProgramTest) -> serde_yaml::Mapping {
 fn initialize_vm<R: Rng + CryptoRng>(
     private_key: &PrivateKey<CurrentNetwork>,
     rng: &mut R,
-) -> (VM<CurrentNetwork, LedgerType<CurrentNetwork>>, Vec<Record<CurrentNetwork, Plaintext<CurrentNetwork>>>) {
+) -> (VM<CurrentNetwork, LedgerType>, Vec<Record<CurrentNetwork, Plaintext<CurrentNetwork>>>) {
     // Initialize a VM.
-    let vm: VM<CurrentNetwork, LedgerType<CurrentNetwork>> =
+    let vm: VM<CurrentNetwork, LedgerType> =
         VM::from(ConsensusStore::open(StorageMode::new_test(None)).unwrap()).unwrap();
 
     // Initialize the genesis block.

@@ -705,15 +705,15 @@ jobs:
           workspace_member: synthesizer
           cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-test-cache
 
-  synthesizer-mem-heavy:
-    docker:
-      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
-    resource_class: << pipeline.parameters.twoxlarge >>
-    steps:
-      - run_serial:
-          flags: -- --ignored test_deployment_synthesis_overload test_deep_nested_execution_cost
-          workspace_member: synthesizer
-          cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-mem-heavy-cache
+  # synthesizer-mem-heavy:
+  #   docker:
+  #     - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+  #   resource_class: << pipeline.parameters.twoxlarge >>
+  #   steps:
+  #     - run_serial:
+  #         flags: -- --ignored test_deployment_synthesis_overload test_deep_nested_execution_cost
+  #         workspace_member: synthesizer
+  #         cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-mem-heavy-cache
 
   synthesizer-integration:
     docker:
@@ -721,7 +721,7 @@ jobs:
     resource_class: << pipeline.parameters.twoxlarge >>
     steps:
       - run_serial:
-          flags: --test '*' --features test -- --test-threads=8
+          flags: --test '*' --features test -- --test-threads=4
           workspace_member: synthesizer
           cache_key: v1.3.0-rust-1.83.0-snarkvm-synthesizer-integration-cache
 
@@ -894,6 +894,40 @@ jobs:
       - clear_environment:
           cache_key: v1.3.0-rust-1.83.0-snarkvm-fmt-cache
 
+  check-unused-dependencies:
+    docker:
+      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    resource_class: << pipeline.parameters.medium >>
+    steps:
+      - checkout
+      - setup_environment:
+          cache_key: v3.3.1-rust-1.83.0-machete-cache
+      - run:
+          name: Check for unused dependencies
+          no_output_timeout: 10m
+          command: |
+            cargo install cargo-machete@0.7.0
+            cargo machete
+      - clear_environment:
+          cache_key: v3.3.1-rust-1.83.0-machete-cache
+
+  check-cargo-audit:
+    docker:
+      - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
+    resource_class: << pipeline.parameters.medium >>
+    steps:
+      - checkout
+      - setup_environment:
+          cache_key: v3.3.1-rust-1.83.0-cargo-audit-cache
+      - run:
+          name:  Check for security vulnerabilities
+          no_output_timeout: 10m
+          command: |
+            cargo install cargo-audit@0.21.2 --locked
+            cargo audit -D warnings
+      - clear_environment:
+          cache_key: v3.3.1-rust-1.83.0-cargo-audit-cache
+
   check-clippy:
     docker:
       - image: cimg/rust:1.83.0 # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
@@ -1004,7 +1038,7 @@ workflows:
       - parameters-uncached
       - synthesizer
       - synthesizer-test
-      - synthesizer-mem-heavy
+      # - synthesizer-mem-heavy
       - synthesizer-integration
       - synthesizer-process
       - synthesizer-process-with-rocksdb
@@ -1022,6 +1056,8 @@ workflows:
       - wasm
       - check-fmt
       - check-clippy
+      - check-unused-dependencies
+      - check-cargo-audit
       - check-all-targets
 
   windows-workflow:

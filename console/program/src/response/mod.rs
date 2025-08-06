@@ -25,8 +25,8 @@ pub enum OutputID<N: Network> {
     Public(Field<N>),
     /// The ciphertext hash of the private output.
     Private(Field<N>),
-    /// The `(commitment, checksum)` tuple of the record output.
-    Record(Field<N>, Field<N>),
+    /// The `(commitment, checksum, sender_ciphertext)` tuple of the record output.
+    Record(Field<N>, Field<N>, Field<N>),
     /// The hash of the external record output.
     ExternalRecord(Field<N>),
     /// The hash of the future output.
@@ -51,6 +51,7 @@ impl<N: Network> From<(Vec<OutputID<N>>, Vec<Value<N>>)> for Response<N> {
 impl<N: Network> Response<N> {
     /// Initializes a new response.
     pub fn new(
+        signer: &Address<N>,
         network_id: &U16<N>,
         program_id: &ProgramID<N>,
         function_name: &Identifier<N>,
@@ -152,21 +153,27 @@ impl<N: Network> Response<N> {
                             None => bail!("Expected a register to be paired with a record output"),
                         };
 
-                        // Compute the record commitment.
-                        let commitment = record.to_commitment(program_id, record_name)?;
-
                         // Construct the (console) output index as a field element.
                         let index = Field::from_u64(output_register.locator());
                         // Compute the encryption randomizer as `HashToScalar(tvk || index)`.
                         let randomizer = N::hash_to_scalar_psd2(&[*tvk, index])?;
 
                         // Encrypt the record, using the randomizer.
-                        let encrypted_record = record.encrypt(randomizer)?;
+                        let (encrypted_record, record_view_key) = record.encrypt_symmetric(randomizer)?;
+
+                        // Compute the record commitment.
+                        let commitment = record.to_commitment(program_id, record_name, &record_view_key)?;
+
                         // Compute the record checksum, as the hash of the encrypted record.
                         let checksum = N::hash_bhp1024(&encrypted_record.to_bits_le())?;
 
+                        // Prepare a randomizer for the sender ciphertext.
+                        let randomizer = N::hash_psd4(&[N::encryption_domain(), record_view_key, Field::one()])?;
+                        // Encrypt the signer address using the randomizer.
+                        let sender_ciphertext = (**signer).to_x_coordinate() + randomizer;
+
                         // Return the output ID.
-                        Ok(OutputID::Record(commitment, checksum))
+                        Ok(OutputID::Record(commitment, checksum, sender_ciphertext))
                     }
                     // For a locator output, compute the hash (using `tvk`) of the output.
                     ValueType::ExternalRecord(..) => {

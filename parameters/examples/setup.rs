@@ -123,10 +123,7 @@ pub fn credits_program<N: Network, A: Aleo<Network = N>>() -> Result<()> {
         write_remote(&format!("{function_name}.prover"), &proving_key_checksum, &proving_key_bytes)?;
         write_local(&format!("{function_name}.verifier"), &verifying_key_bytes)?;
 
-        commands.push(format!(
-            "upload \"{}\"",
-            versioned_filename(&format!("{function_name}.prover"), &proving_key_checksum)
-        ));
+        commands.push(format!("upload \"{}\"", versioned_filename(&format!("{function_name}.prover"), &proving_key_checksum)));
     }
 
     // Print the commands.

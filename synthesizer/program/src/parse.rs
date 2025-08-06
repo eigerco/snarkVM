@@ -161,7 +161,7 @@ impl<N: Network, Instruction: InstructionTrait<N>, Command: CommandTrait<N>> Dis
         // Print the program name.
         write!(f, "{} {};\n\n", Self::type_name(), self.id)?;
 
-        let mut identifier_iter = self.identifiers.iter().peekable();
+        let mut identifier_iter = self.components.iter().peekable();
         while let Some((identifier, definition)) = identifier_iter.next() {
             match definition {
                 ProgramDefinition::Mapping => match self.mappings.get(identifier) {

@@ -245,7 +245,7 @@ mod tests {
     type CurrentNetwork = snarkvm_console::network::MainnetV0;
 
     fn temp_dir() -> std::path::PathBuf {
-        tempfile::tempdir().expect("Failed to open temporary directory").into_path()
+        tempfile::tempdir().expect("Failed to open temporary directory").keep()
     }
 
     #[test]

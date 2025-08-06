@@ -16,7 +16,7 @@
 use super::*;
 
 impl<A: Aleo> Response<A> {
-    /// Returns the injected circuit outputs, given the number of inputs, tvk, tcm, outputs, and output types.
+    /// Returns the injected circuit outputs, given the number of inputs, tvk, tcm, outputs, output types, and output registers.
     pub fn process_outputs_from_callback(
         network_id: &U16<A>,
         program_id: &ProgramID<A>,
@@ -26,6 +26,7 @@ impl<A: Aleo> Response<A> {
         tcm: &Field<A>,
         outputs: Vec<console::Value<A::Network>>,        // Note: Console type
         output_types: &[console::ValueType<A::Network>], // Note: Console type
+        output_registers: &[Option<console::Register<A::Network>>], // Note: Console type
     ) -> Vec<Value<A>> {
         // Compute the function ID.
         let function_id = compute_function_id(network_id, program_id, function_name);
@@ -33,8 +34,9 @@ impl<A: Aleo> Response<A> {
         match outputs
             .iter()
             .zip_eq(output_types)
+            .zip_eq(output_registers)
             .enumerate()
-            .map(|(index, (output, output_types))| {
+            .map(|(index, ((output, output_types), output_register))| {
                 match output_types {
                     // For a constant output, compute the hash (using `tcm`) of the output.
                     console::ValueType::Constant(..) => {
@@ -119,8 +121,23 @@ impl<A: Aleo> Response<A> {
                             Value::Plaintext(..) => A::halt("Expected a record output, found a plaintext output"),
                             Value::Future(..) => A::halt("Expected a record output, found a future output"),
                         };
+
+                        // Retrieve the output register.
+                        let output_register = match output_register {
+                            Some(output_register) => output_register,
+                            None => A::halt("Expected a register to be paired with a record output"),
+                        };
+
+                        // Prepare the index as a constant field element.
+                        let output_index = Field::constant(console::Field::from_u64(output_register.locator()));
+                        // Compute the encryption randomizer as `HashToScalar(tvk || index)`.
+                        let randomizer = A::hash_to_scalar_psd2(&[tvk.clone(), output_index]);
+
+                        // Compute the record view key.
+                        let record_view_key = ((*record.owner()).to_group() * randomizer).to_x_coordinate();
                         // Compute the record commitment.
-                        let commitment = record.to_commitment(program_id, &Identifier::constant(*record_name));
+                        let commitment =
+                            record.to_commitment(program_id, &Identifier::constant(*record_name), &record_view_key);
 
                         // Return the output ID.
                         // Note: Because this is a callback, the output ID is an **external record** ID.
@@ -254,6 +271,8 @@ mod tests {
                 Some(console::Register::Locator(9)),
             ];
 
+            // Construct a signer.
+            let signer = console::Address::rand(rng);
             // Construct a network ID.
             let network_id = console::U16::new(<Circuit as Environment>::Network::ID);
             // Construct a program ID.
@@ -263,6 +282,7 @@ mod tests {
 
             // Construct the response.
             let response = console::Response::new(
+                &signer,
                 &network_id,
                 &program_id,
                 &function_name,
@@ -275,7 +295,8 @@ mod tests {
             )?;
             // assert!(response.verify());
 
-            // Inject the network ID, program ID, function name, `tvk`, `tcm`.
+            // Inject the signer, network ID, program ID, function name, `tvk`, `tcm`.
+            let signer = Address::<Circuit>::new(mode, signer);
             let network_id = U16::<Circuit>::constant(network_id);
             let program_id = ProgramID::<Circuit>::new(mode, program_id);
             let function_name = Identifier::<Circuit>::new(mode, function_name);
@@ -292,10 +313,11 @@ mod tests {
                     &tcm,
                     response.outputs().to_vec(),
                     &output_types,
+                    &output_registers,
                 );
                 assert_eq!(response.outputs(), outputs.eject_value());
                 match mode.is_constant() {
-                    true => assert_scope!(<=num_constants, num_public, num_private, num_constraints),
+                    true => assert_scope!(<=num_constants, <=num_public, <=num_private, <=num_constraints),
                     false => assert_scope!(<=num_constants, num_public, num_private, num_constraints),
                 }
             });
@@ -303,6 +325,7 @@ mod tests {
             // Compute the response using outputs (circuit).
             let outputs = Inject::new(mode, response.outputs().to_vec());
             let candidate_b = Response::from_outputs(
+                &signer,
                 &network_id,
                 &program_id,
                 &function_name,
@@ -326,16 +349,16 @@ mod tests {
 
     #[test]
     fn test_from_callback_constant() -> Result<()> {
-        check_from_callback(Mode::Constant, 20844, 5, 4922, 4931)
+        check_from_callback(Mode::Constant, 35000, 5, 11500, 11500)
     }
 
     #[test]
     fn test_from_callback_public() -> Result<()> {
-        check_from_callback(Mode::Public, 20844, 5, 6217, 6226)
+        check_from_callback(Mode::Public, 34374, 5, 13475, 13490)
     }
 
     #[test]
     fn test_from_callback_private() -> Result<()> {
-        check_from_callback(Mode::Private, 20844, 5, 6217, 6226)
+        check_from_callback(Mode::Private, 34374, 5, 13475, 13490)
     }
 }

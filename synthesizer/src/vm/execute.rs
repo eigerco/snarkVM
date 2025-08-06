@@ -31,27 +31,58 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         inputs: impl ExactSizeIterator<Item = impl TryInto<Value<N>>>,
         fee_record: Option<Record<N, Plaintext<N>>>,
         priority_fee_in_microcredits: u64,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: Option<&dyn QueryTrait<N>>,
         rng: &mut R,
     ) -> Result<Transaction<N>> {
+        let (execution, _) = self.execute_with_response(
+            private_key,
+            (program_id, function_name),
+            inputs,
+            fee_record,
+            priority_fee_in_microcredits,
+            query,
+            rng,
+        )?;
+        Ok(execution)
+    }
+
+    /// Returns a new execute transaction and response.
+    ///
+    /// If a `fee_record` is provided, then a private fee will be included in the transaction;
+    /// otherwise, a public fee will be included in the transaction.
+    ///
+    /// The `priority_fee_in_microcredits` is an additional fee **on top** of the execution fee.
+    pub fn execute_with_response<R: Rng + CryptoRng>(
+        &self,
+        private_key: &PrivateKey<N>,
+        (program_id, function_name): (impl TryInto<ProgramID<N>>, impl TryInto<Identifier<N>>),
+        inputs: impl ExactSizeIterator<Item = impl TryInto<Value<N>>>,
+        fee_record: Option<Record<N, Plaintext<N>>>,
+        priority_fee_in_microcredits: u64,
+        query: Option<&dyn QueryTrait<N>>,
+        rng: &mut R,
+    ) -> Result<(Transaction<N>, Response<N>)> {
+        // Get a default query if one is not provided.
+        let query = match query {
+            Some(q) => q,
+            None => &Query::VM(self.block_store().clone()),
+        };
         // Compute the authorization.
         let authorization = self.authorize(private_key, program_id, function_name, inputs, rng)?;
         // Determine if a fee is required.
-        let is_fee_required = !authorization.is_split();
+        let is_fee_required = !(authorization.is_split() || authorization.is_upgrade());
         // Determine if a priority fee is declared.
         let is_priority_fee_declared = priority_fee_in_microcredits > 0;
         // Compute the execution.
-        let (execution, _) = self.execute_authorization_raw(authorization, query.clone(), rng)?;
+        let (execution, response) = self.execute_authorization_raw(authorization, query, rng)?;
         // Compute the fee.
         let fee = match is_fee_required || is_priority_fee_declared {
             true => {
                 // Compute the minimum execution cost.
-                let query = query.clone().unwrap_or(Query::VM(self.block_store().clone()));
                 let consensus_version = N::CONSENSUS_VERSION(query.current_block_height()?)?;
-                let (minimum_execution_cost, (_, _)) = if consensus_version == ConsensusVersion::V1 {
-                    execution_cost_v1(&self.process().read(), &execution)?
-                } else {
-                    execution_cost_v2(&self.process().read(), &execution)?
+                let (minimum_execution_cost, (_, _)) = match consensus_version == ConsensusVersion::V1 {
+                    true => execution_cost_v1(&self.process().read(), &execution)?,
+                    false => execution_cost_v2(&self.process().read(), &execution)?,
                 };
                 // Compute the execution ID.
                 let execution_id = execution.to_execution_id()?;
@@ -74,12 +105,12 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                     )?,
                 };
                 // Execute the fee.
-                Some(self.execute_fee_authorization_raw(authorization, Some(query), rng)?)
+                Some(self.execute_fee_authorization_raw(authorization, query, rng)?)
             }
             false => None,
         };
-        // Return the execute transaction.
-        Transaction::from_execution(execution, fee)
+        // Return the execute transaction and response.
+        Ok((Transaction::from_execution(execution, fee)?, response))
     }
 
     /// Returns a new execute transaction for the given authorization.
@@ -90,7 +121,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         &self,
         execute_authorization: Authorization<N>,
         fee_authorization: Option<Authorization<N>>,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: Option<&dyn QueryTrait<N>>,
         rng: &mut R,
     ) -> Result<Transaction<N>> {
         let (execution, _) =
@@ -103,12 +134,16 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         &self,
         execute_authorization: Authorization<N>,
         fee_authorization: Option<Authorization<N>>,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: Option<&dyn QueryTrait<N>>,
         rng: &mut R,
     ) -> Result<(Transaction<N>, Response<N>)> {
+        // Get a default query if one is not provided.
+        let query = match query {
+            Some(q) => q,
+            None => &Query::VM(self.block_store().clone()),
+        };
         // Compute the execution.
-        let (execution, response) = self.execute_authorization_raw(execute_authorization, query.clone(), rng)?;
-        // Compute the fee.
+        let (execution, response) = self.execute_authorization_raw(execute_authorization, query, rng)?;
         let fee = match fee_authorization {
             Some(authorization) => Some(self.execute_fee_authorization_raw(authorization, query, rng)?),
             None => None,
@@ -122,10 +157,15 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
     pub fn execute_fee_authorization<R: Rng + CryptoRng>(
         &self,
         authorization: Authorization<N>,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: Option<&dyn QueryTrait<N>>,
         rng: &mut R,
     ) -> Result<Fee<N>> {
         debug_assert!(authorization.is_fee_private() || authorization.is_fee_public(), "Expected a fee authorization");
+        // Get a default query if one is not provided.
+        let query = match query {
+            Some(q) => q,
+            None => &Query::VM(self.block_store().clone()),
+        };
         self.execute_fee_authorization_raw(authorization, query, rng)
     }
 }
@@ -137,7 +177,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
     fn execute_authorization_raw<R: Rng + CryptoRng>(
         &self,
         authorization: Authorization<N>,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: &dyn QueryTrait<N>,
         rng: &mut R,
     ) -> Result<(Execution<N>, Response<N>)> {
         let timer = timer!("VM::execute_authorization_raw");
@@ -147,21 +187,18 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
             let request = authorization.peek_next()?;
             Locator::new(*request.program_id(), *request.function_name()).to_string()
         };
-        // Prepare the query.
-        let query = match query {
-            Some(query) => query,
-            None => Query::VM(self.block_store().clone()),
-        };
-        lap!(timer, "Prepare the query");
 
-        // Determine which Varuna version to use.
+        // Determine the consensus version.
         let consensus_version = N::CONSENSUS_VERSION(query.current_block_height()?)?;
-        let varuna_version = if (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
-            VarunaVersion::V1
-        } else {
-            VarunaVersion::V2
+        // Check whether the authorization is for a valid program edition.
+        authorization.check_valid_edition(&self.process.read(), consensus_version)?;
+        // Check whether the authorization is creating valid records.
+        authorization.check_valid_records(consensus_version)?;
+        // Determine which Varuna version to use.
+        let varuna_version = match (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
+            true => VarunaVersion::V1,
+            false => VarunaVersion::V2,
         };
-
         macro_rules! logic {
             ($process:expr, $network:path, $aleo:path) => {{
                 // Prepare the authorization.
@@ -195,26 +232,22 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
     fn execute_fee_authorization_raw<R: Rng + CryptoRng>(
         &self,
         authorization: Authorization<N>,
-        query: Option<Query<N, C::BlockStorage>>,
+        query: &dyn QueryTrait<N>,
         rng: &mut R,
     ) -> Result<Fee<N>> {
         let timer = timer!("VM::execute_fee_authorization_raw");
 
-        // Prepare the query.
-        let query = match query {
-            Some(query) => query,
-            None => Query::VM(self.block_store().clone()),
-        };
-        lap!(timer, "Prepare the query");
-
-        // Determine which Varuna version to use.
+        // Determine the consensus version.
         let consensus_version = N::CONSENSUS_VERSION(query.current_block_height()?)?;
-        let varuna_version = if (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
-            VarunaVersion::V1
-        } else {
-            VarunaVersion::V2
+        // Check whether the authorization is for a valid program edition.
+        authorization.check_valid_edition(&self.process.read(), consensus_version)?;
+        // Check whether the authorization is creating valid records.
+        authorization.check_valid_records(consensus_version)?;
+        // Determine which Varuna version to use.
+        let varuna_version = match (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
+            true => VarunaVersion::V1,
+            false => VarunaVersion::V2,
         };
-
         macro_rules! logic {
             ($process:expr, $network:path, $aleo:path) => {{
                 // Prepare the authorization.
@@ -390,7 +423,8 @@ mod tests {
 
         let authorization = vm.authorize(&caller_private_key, credits_program, function_name, inputs, rng).unwrap();
 
-        let (execution, _) = vm.execute_authorization_raw(authorization, None, rng).unwrap();
+        let query = Query::VM(vm.block_store().clone());
+        let (execution, _) = vm.execute_authorization_raw(authorization, &query, rng).unwrap();
         let (cost, _) = execution_cost_v2(&vm.process().read(), &execution).unwrap();
         let (old_cost, _) = execution_cost_v1(&vm.process().read(), &execution).unwrap();
 
@@ -526,7 +560,8 @@ finalize test:
 
         let authorization = vm.authorize(&caller_private_key, credits_program, function_name, inputs, rng).unwrap();
 
-        let (execution, _) = vm.execute_authorization_raw(authorization, None, rng).unwrap();
+        let query = Query::VM(vm.block_store().clone());
+        let (execution, _) = vm.execute_authorization_raw(authorization, &query, rng).unwrap();
         let (cost, _) = execution_cost_v1(&vm.process().read(), &execution).unwrap();
         println!("Cost: {}", cost);
     }
@@ -598,13 +633,13 @@ finalize test:
 
         // Assert the size of the transaction.
         let transaction_size_in_bytes = transaction.to_bytes_le().unwrap().len();
-        assert_eq!(3693, transaction_size_in_bytes, "Update me if serialization has changed");
+        assert_eq!(3759, transaction_size_in_bytes, "Update me if serialization has changed");
 
         // Assert the size of the execution.
         assert!(matches!(transaction, Transaction::Execute(_, _, _, _)));
         if let Transaction::Execute(_, _, execution, _) = &transaction {
             let execution_size_in_bytes = execution.to_bytes_le().unwrap().len();
-            assert_eq!(2242, execution_size_in_bytes, "Update me if serialization has changed");
+            assert_eq!(2308, execution_size_in_bytes, "Update me if serialization has changed");
         }
     }
 
@@ -701,13 +736,13 @@ finalize test:
 
         // Assert the size of the transaction.
         let transaction_size_in_bytes = transaction.to_bytes_le().unwrap().len();
-        assert_eq!(3538, transaction_size_in_bytes, "Update me if serialization has changed");
+        assert_eq!(3571, transaction_size_in_bytes, "Update me if serialization has changed");
 
         // Assert the size of the execution.
         assert!(matches!(transaction, Transaction::Execute(_, _, _, _)));
         if let Transaction::Execute(_, _, execution, _) = &transaction {
             let execution_size_in_bytes = execution.to_bytes_le().unwrap().len();
-            assert_eq!(2087, execution_size_in_bytes, "Update me if serialization has changed");
+            assert_eq!(2120, execution_size_in_bytes, "Update me if serialization has changed");
         }
     }
 
@@ -739,13 +774,13 @@ finalize test:
 
         // Assert the size of the transaction.
         let transaction_size_in_bytes = transaction.to_bytes_le().unwrap().len();
-        assert_eq!(2166, transaction_size_in_bytes, "Update me if serialization has changed");
+        assert_eq!(2232, transaction_size_in_bytes, "Update me if serialization has changed");
 
         // Assert the size of the execution.
         assert!(matches!(transaction, Transaction::Execute(_, _, _, _)));
         if let Transaction::Execute(_, _, execution, _) = &transaction {
             let execution_size_in_bytes = execution.to_bytes_le().unwrap().len();
-            assert_eq!(2131, execution_size_in_bytes, "Update me if serialization has changed");
+            assert_eq!(2197, execution_size_in_bytes, "Update me if serialization has changed");
         }
     }
 
@@ -766,7 +801,7 @@ finalize test:
 
         // Assert the size of the transition.
         let fee_size_in_bytes = fee.to_bytes_le().unwrap().len();
-        assert_eq!(2043, fee_size_in_bytes, "Update me if serialization has changed");
+        assert_eq!(2076, fee_size_in_bytes, "Update me if serialization has changed");
     }
 
     #[test]

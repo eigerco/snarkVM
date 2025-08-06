@@ -100,20 +100,20 @@ mod tests {
                 crate::transactions::confirmed::test_helpers::sample_accepted_execute(0, true, rng),
                 crate::transactions::confirmed::test_helpers::sample_accepted_deploy(1, true, rng),
                 crate::transactions::confirmed::test_helpers::sample_rejected_execute(2, false, rng),
-                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(3, false, rng),
+                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(3, 0, false, rng),
             ]
             .into_iter()
             .collect()
         } else {
             [
                 crate::transactions::confirmed::test_helpers::sample_accepted_execute(0, true, rng),
-                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(1, true, rng),
+                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(1, 0, true, rng),
                 crate::transactions::confirmed::test_helpers::sample_accepted_deploy(2, true, rng),
                 crate::transactions::confirmed::test_helpers::sample_rejected_execute(3, true, rng),
                 crate::transactions::confirmed::test_helpers::sample_accepted_execute(4, false, rng),
                 crate::transactions::confirmed::test_helpers::sample_rejected_execute(5, false, rng),
                 crate::transactions::confirmed::test_helpers::sample_accepted_execute(6, false, rng),
-                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(7, false, rng),
+                crate::transactions::confirmed::test_helpers::sample_rejected_deploy(7, 0, false, rng),
             ]
             .into_iter()
             .collect()

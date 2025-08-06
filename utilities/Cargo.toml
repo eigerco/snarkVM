@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-utilities"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Utilities for a decentralized virtual machine"
 homepage = "https://aleo.org"
@@ -25,7 +25,7 @@ edition = "2021"
 
 [dependencies.snarkvm-utilities-derives]
 path = "./derives"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.aleo-std]
@@ -82,9 +82,18 @@ version = "2.1.4"
 optional = true
 
 [features]
+<<<<<<< HEAD
 default = [ "aleo-std/cpu", "derive", "num_cpus", "std", "num-bigint" ]
 derive = [ "snarkvm-utilities-derives", "num-bigint" ]
 serial = [ "derive", "num-bigint" ]
 std = [ "num-bigint" ]
 wasm = [ "num-bigint" ]
 cosmwasm = [ "cosmwasm-std" ]
+=======
+default = [ "aleo-std/cpu", "derive", "num_cpus", "std" ]
+derive = [ "snarkvm-utilities-derives" ]
+dev-print = [ ]
+serial = [ "derive" ]
+std = [ ]
+wasm = [ ]
+>>>>>>> v4.0.0

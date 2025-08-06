@@ -21,7 +21,7 @@ mod process_outputs_from_callback;
 
 use crate::{Identifier, ProgramID, Value, compute_function_id};
 use snarkvm_circuit_network::Aleo;
-use snarkvm_circuit_types::{Field, U16, environment::prelude::*};
+use snarkvm_circuit_types::{Address, Field, U16, environment::prelude::*};
 
 pub enum OutputID<A: Aleo> {
     /// The hash of the constant output.
@@ -30,8 +30,8 @@ pub enum OutputID<A: Aleo> {
     Public(Field<A>),
     /// The ciphertext hash of the private output.
     Private(Field<A>),
-    /// The `(commitment, checksum)` tuple of the record output.
-    Record(Field<A>, Field<A>),
+    /// The `(commitment, checksum, sender_ciphertext)` tuple of the record output.
+    Record(Field<A>, Field<A>, Field<A>),
     /// The hash of the external record output.
     ExternalRecord(Field<A>),
     /// The hash of the future output.
@@ -52,9 +52,11 @@ impl<A: Aleo> Inject for OutputID<A> {
             // Inject the ciphertext hash as `Mode::Public`.
             console::OutputID::Private(field) => Self::Private(Field::new(Mode::Public, field)),
             // Inject the expected commitment and checksum as `Mode::Public`.
-            console::OutputID::Record(commitment, checksum) => {
-                Self::Record(Field::new(Mode::Public, commitment), Field::new(Mode::Public, checksum))
-            }
+            console::OutputID::Record(commitment, checksum, sender_ciphertext) => Self::Record(
+                Field::new(Mode::Public, commitment),
+                Field::new(Mode::Public, checksum),
+                Field::new(Mode::Public, sender_ciphertext),
+            ),
             // Inject the expected hash as `Mode::Public`.
             console::OutputID::ExternalRecord(hash) => Self::ExternalRecord(Field::new(Mode::Public, hash)),
             // Inject the expected hash as `Mode::Public`.
@@ -95,15 +97,26 @@ impl<A: Aleo> OutputID<A> {
     }
 
     /// Initializes a record output ID.
-    fn record(expected_commitment: Field<A>, expected_checksum: Field<A>) -> Self {
-        // Inject the expected commitment and checksum as `Mode::Public`.
+    fn record(
+        expected_commitment: Field<A>,
+        expected_checksum: Field<A>,
+        expected_sender_ciphertext: Field<A>,
+    ) -> Self {
+        // Inject the expected commitment, checksum, and sender ciphertext as `Mode::Public`.
         let output_commitment = Field::new(Mode::Public, expected_commitment.eject_value());
         let output_checksum = Field::new(Mode::Public, expected_checksum.eject_value());
-        // Ensure the injected commitment and checksum match the given commitment and checksum.
+        let output_sender_ciphertext = Field::new(Mode::Public, expected_sender_ciphertext.eject_value()); // Note: Set to `0field` here and in consensus to make optional or deactivated.
+        // Ensure the injected commitment and checksum matches the given commitment and checksum.
         A::assert_eq(&output_commitment, expected_commitment);
         A::assert_eq(&output_checksum, expected_checksum);
+        // Ensure the sender ciphertext matches, or the sender ciphertext is zero.
+        // Note: The option to allow a zero-value in the sender ciphertext allows
+        // this feature to become optional or deactivated in the future.
+        let is_sender_ciphertext_equal = output_sender_ciphertext.is_equal(&expected_sender_ciphertext);
+        let is_sender_ciphertext_zero = output_sender_ciphertext.is_zero();
+        A::assert(is_sender_ciphertext_equal | is_sender_ciphertext_zero);
         // Return the output ID.
-        Self::Record(output_commitment, output_checksum)
+        Self::Record(output_commitment, output_checksum, output_sender_ciphertext)
     }
 
     /// Initializes an external record output ID.
@@ -137,7 +150,9 @@ impl<A: Aleo> Eject for OutputID<A> {
             Self::Constant(field) => field.eject_mode(),
             Self::Public(field) => field.eject_mode(),
             Self::Private(field) => field.eject_mode(),
-            Self::Record(commitment, checksum) => Mode::combine(commitment.eject_mode(), [checksum.eject_mode()]),
+            Self::Record(commitment, checksum, sender_ciphertext) => {
+                Mode::combine(commitment.eject_mode(), [checksum.eject_mode(), sender_ciphertext.eject_mode()])
+            }
             Self::ExternalRecord(hash) => hash.eject_mode(),
             Self::Future(hash) => hash.eject_mode(),
         }
@@ -149,9 +164,11 @@ impl<A: Aleo> Eject for OutputID<A> {
             Self::Constant(field) => console::OutputID::Constant(field.eject_value()),
             Self::Public(field) => console::OutputID::Public(field.eject_value()),
             Self::Private(field) => console::OutputID::Private(field.eject_value()),
-            Self::Record(commitment, checksum) => {
-                console::OutputID::Record(commitment.eject_value(), checksum.eject_value())
-            }
+            Self::Record(commitment, checksum, sender_ciphertext) => console::OutputID::Record(
+                commitment.eject_value(),
+                checksum.eject_value(),
+                sender_ciphertext.eject_value(),
+            ),
             Self::ExternalRecord(hash) => console::OutputID::ExternalRecord(hash.eject_value()),
             Self::Future(hash) => console::OutputID::Future(hash.eject_value()),
         }

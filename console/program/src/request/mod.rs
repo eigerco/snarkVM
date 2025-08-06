@@ -211,7 +211,7 @@ mod test_helpers {
 
                 // Compute the signed request.
                 let request =
-                    Request::sign(&private_key, program_id, function_name, inputs.into_iter(), &input_types, root_tvk, is_root, rng).unwrap();
+                    Request::sign(&private_key, program_id, function_name, inputs.into_iter(), &input_types, root_tvk,  is_root, rng).unwrap();
                 assert!(request.verify(&input_types, is_root));
                 request
             })

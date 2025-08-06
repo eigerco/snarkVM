@@ -57,7 +57,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         // Store the inputs.
         closure.inputs().iter().map(|i| i.register()).zip_eq(inputs).try_for_each(|(register, input)| {
             // If the circuit is in execute mode, then store the console input.
-            if let CallStack::Execute(..) = registers.call_stack() {
+            if let CallStack::Execute(..) = registers.call_stack_ref() {
                 use circuit::Eject;
                 // Assign the console input to the register.
                 registers.store(self, register, input.eject_value())?;
@@ -70,7 +70,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         // Execute the instructions.
         for instruction in closure.instructions() {
             // If the circuit is in execute mode, then evaluate the instructions.
-            if let CallStack::Execute(..) = registers.call_stack() {
+            if let CallStack::Execute(..) = registers.call_stack_ref() {
                 // If the evaluation fails, bail and return the error.
                 if let Err(error) = instruction.evaluate(self, &mut registers) {
                     bail!("Failed to evaluate instruction ({instruction}): {error}");
@@ -258,8 +258,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
 
         lap!(timer, "Initialize the registers");
 
-        #[cfg(debug_assertions)]
-        Self::log_circuit::<A, _>("Request");
+        Self::log_circuit::<A>("Request");
 
         // Retrieve the number of constraints for verifying the request in the circuit.
         let num_request_constraints = A::num_constraints();
@@ -270,7 +269,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         // Store the inputs.
         function.inputs().iter().map(|i| i.register()).zip_eq(request.inputs()).try_for_each(|(register, input)| {
             // If the circuit is in execute mode, then store the console input.
-            if let CallStack::Execute(..) = registers.call_stack() {
+            if let CallStack::Execute(..) = registers.call_stack_ref() {
                 // Assign the console input to the register.
                 registers.store(self, register, input.eject_value())?;
             }
@@ -285,11 +284,11 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         // Execute the instructions.
         for instruction in function.instructions() {
             // If the circuit is in execute mode, then evaluate the instructions.
-            if let CallStack::Execute(..) = registers.call_stack() {
+            if let CallStack::Execute(..) = registers.call_stack_ref() {
                 // Evaluate the instruction.
                 let result = match instruction {
                     // If the instruction is a `call` instruction, we need to handle it separately.
-                    Instruction::Call(call) => CallTrait::evaluate(call, self, &mut registers),
+                    Instruction::Call(call) => CallTrait::evaluate(call, self, &mut registers, rng),
                     // Otherwise, evaluate the instruction normally.
                     _ => instruction.evaluate(self, &mut registers),
                 };
@@ -369,8 +368,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
             })
             .collect::<Vec<_>>();
 
-        #[cfg(debug_assertions)]
-        Self::log_circuit::<A, _>(format!("Function '{}()'", function.name()));
+        Self::log_circuit::<A>(format!("Function '{}()'", function.name()));
 
         // Retrieve the number of constraints for executing the function in the circuit.
         let num_function_constraints = A::num_constraints().saturating_sub(num_request_constraints);
@@ -383,6 +381,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
 
         // Construct the response.
         let response = circuit::Response::from_outputs(
+            request.signer(),
             request.network_id(),
             request.program_id(),
             request.function_name(),
@@ -395,15 +394,13 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         );
         lap!(timer, "Construct the response");
 
-        #[cfg(debug_assertions)]
-        Self::log_circuit::<A, _>("Response");
+        Self::log_circuit::<A>("Response");
 
         // Retrieve the number of constraints for verifying the response in the circuit.
         let num_response_constraints =
             A::num_constraints().saturating_sub(num_request_constraints).saturating_sub(num_function_constraints);
 
-        #[cfg(debug_assertions)]
-        Self::log_circuit::<A, _>("Complete");
+        Self::log_circuit::<A>("Complete");
 
         // Eject the response.
         let response = response.eject_value();
@@ -415,7 +412,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         })?;
 
         // If the circuit is in `Execute` or `PackageRun` mode, then ensure the circuit is satisfied.
-        if matches!(registers.call_stack(), CallStack::Execute(..) | CallStack::PackageRun(..)) {
+        if matches!(registers.call_stack_ref(), CallStack::Execute(..) | CallStack::PackageRun(..)) {
             // If the circuit is empty or not satisfied, then throw an error.
             ensure!(
                 A::num_constraints() > 0 && A::is_satisfied(),
@@ -430,7 +427,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
         let assignment = A::eject_assignment_and_reset();
 
         // If the circuit is in `Synthesize` or `Execute` mode, synthesize the circuit key, if it does not exist.
-        if matches!(registers.call_stack(), CallStack::Synthesize(..) | CallStack::Execute(..)) {
+        if matches!(registers.call_stack_ref(), CallStack::Synthesize(..) | CallStack::Execute(..)) {
             // If the proving key does not exist, then synthesize it.
             if !self.contains_proving_key(function.name()) {
                 // Add the circuit key to the mapping.
@@ -439,7 +436,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
             }
         }
         // If the circuit is in `Authorize` mode, then save the transition.
-        if let CallStack::Authorize(_, _, authorization) = registers.call_stack() {
+        if let CallStack::Authorize(_, _, authorization) = registers.call_stack_ref() {
             // Construct the transition.
             let transition = Transition::from(&console_request, &response, &output_types, &output_registers)?;
             // Add the transition to the authorization.
@@ -447,7 +444,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
             lap!(timer, "Save the transition");
         }
         // If the circuit is in `CheckDeployment` mode, then save the assignment.
-        else if let CallStack::CheckDeployment(_, _, ref assignments, _, _) = registers.call_stack() {
+        else if let CallStack::CheckDeployment(_, _, ref assignments, _, _) = registers.call_stack_ref() {
             // Construct the call metrics.
             let metrics = CallMetrics {
                 program_id: *self.program_id(),
@@ -462,7 +459,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
             lap!(timer, "Save the circuit assignment");
         }
         // If the circuit is in `Execute` mode, then execute the circuit into a transition.
-        else if let CallStack::Execute(_, ref trace) = registers.call_stack() {
+        else if let CallStack::Execute(_, ref trace) = registers.call_stack_ref() {
             registers.ensure_console_and_circuit_registers_match()?;
 
             // Construct the transition.
@@ -489,7 +486,7 @@ impl<N: Network> StackExecute<N> for Stack<N> {
             )?;
         }
         // If the circuit is in `PackageRun` mode, then save the assignment.
-        else if let CallStack::PackageRun(_, _, ref assignments) = registers.call_stack() {
+        else if let CallStack::PackageRun(_, _, ref assignments) = registers.call_stack_ref() {
             // Construct the call metrics.
             let metrics = CallMetrics {
                 program_id: *self.program_id(),
@@ -513,20 +510,26 @@ impl<N: Network> StackExecute<N> for Stack<N> {
 
 impl<N: Network> Stack<N> {
     /// Prints the current state of the circuit.
-    #[cfg(debug_assertions)]
-    pub(crate) fn log_circuit<A: circuit::Aleo<Network = N>, S: Into<String>>(scope: S) {
-        use colored::Colorize;
+    #[allow(unused_variables)]
+    pub(crate) fn log_circuit<A: circuit::Aleo<Network = N>>(scope: impl std::fmt::Display) {
+        #[cfg(debug_assertions)]
+        {
+            use utilities::dev_println;
 
-        // Determine if the circuit is satisfied.
-        let is_satisfied = if A::is_satisfied() { "✅".green() } else { "❌".red() };
-        // Determine the count.
-        let (num_constant, num_public, num_private, num_constraints, num_nonzeros) = A::count();
+            use colored::Colorize as _;
 
-        // Print the log.
-        println!(
-            "{is_satisfied} {:width$} (Constant: {num_constant}, Public: {num_public}, Private: {num_private}, Constraints: {num_constraints}, NonZeros: {num_nonzeros:?})",
-            scope.into().bold(),
-            width = 20
-        );
+            // Determine if the circuit is satisfied.
+            let is_satisfied = if A::is_satisfied() { "✅" } else { "❌" };
+            // Determine the count.
+            let (num_constant, num_public, num_private, num_constraints, num_nonzeros) = A::count();
+
+            let scope = scope.to_string().bold();
+
+            // Print the log.
+            dev_println!(
+                "{is_satisfied} {scope:width$} (Constant: {num_constant}, Public: {num_public}, Private: {num_private}, Constraints: {num_constraints}, NonZeros: {num_nonzeros:?})",
+                width = 20
+            );
+        }
     }
 }

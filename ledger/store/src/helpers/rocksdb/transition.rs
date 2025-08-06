@@ -231,6 +231,8 @@ pub struct OutputDB<N: Network> {
     record: DataMap<Field<N>, (Field<N>, Option<Record<N, Ciphertext<N>>>)>,
     /// The mapping of `record nonce` to `commitment`.
     record_nonce: DataMap<Group<N>, Field<N>>,
+    /// The mapping of `record nonce` to `sender ciphertext`.
+    record_sender: DataMap<Group<N>, Option<Field<N>>>,
     /// The mapping of `external commitment` to `()`. Note: This is **not** the record commitment.
     external_record: DataMap<Field<N>, ()>,
     /// The mapping of `future hash` to `(optional) future`.
@@ -247,6 +249,7 @@ impl<N: Network> OutputStorage<N> for OutputDB<N> {
     type PublicMap = DataMap<Field<N>, Option<Plaintext<N>>>;
     type PrivateMap = DataMap<Field<N>, Option<Ciphertext<N>>>;
     type RecordMap = DataMap<Field<N>, (Field<N>, Option<Record<N, Ciphertext<N>>>)>;
+    type RecordSenderMap = DataMap<Group<N>, Option<Field<N>>>;
     type RecordNonceMap = DataMap<Group<N>, Field<N>>;
     type ExternalRecordMap = DataMap<Field<N>, ()>;
     type FutureMap = DataMap<Field<N>, Option<Future<N>>>;
@@ -262,6 +265,7 @@ impl<N: Network> OutputStorage<N> for OutputDB<N> {
             private: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::Private))?,
             record: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::Record))?,
             record_nonce: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::RecordNonce))?,
+            record_sender: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::RecordSender))?,
             external_record: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::ExternalRecord))?,
             future: rocksdb::RocksDB::open_map(N::ID, storage.clone(), MapID::TransitionOutput(TransitionOutputMap::Future))?,
             storage_mode: storage,
@@ -301,6 +305,11 @@ impl<N: Network> OutputStorage<N> for OutputDB<N> {
     /// Returns the record nonce map.
     fn record_nonce_map(&self) -> &Self::RecordNonceMap {
         &self.record_nonce
+    }
+    
+    /// Returns the record sender map.
+    fn record_sender_map(&self) -> &Self::RecordSenderMap {
+        &self.record_sender
     }
 
     /// Returns the external record map.

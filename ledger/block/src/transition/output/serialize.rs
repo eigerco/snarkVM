@@ -47,13 +47,19 @@ impl<N: Network> Serialize for Output<N> {
                     }
                     output.end()
                 }
-                Self::Record(id, checksum, value) => {
-                    let mut output = serializer.serialize_struct("Output", 3 + value.is_some() as usize)?;
+                Self::Record(id, checksum, value, sender_ciphertext) => {
+                    let mut output = serializer.serialize_struct(
+                        "Output",
+                        3 + value.is_some() as usize + sender_ciphertext.is_some() as usize,
+                    )?;
                     output.serialize_field("type", "record")?;
                     output.serialize_field("id", &id)?;
                     output.serialize_field("checksum", &checksum)?;
                     if let Some(value) = value {
                         output.serialize_field("value", &value)?;
+                    }
+                    if let Some(sender_ciphertext) = sender_ciphertext {
+                        output.serialize_field("sender_ciphertext", &sender_ciphertext)?;
                     }
                     output.end()
                 }
@@ -106,12 +112,20 @@ impl<'de, N: Network> Deserialize<'de> for Output<N> {
                         // Retrieve the checksum.
                         let checksum: Field<N> = DeserializeExt::take_from_value::<D>(&mut output, "checksum")?;
                         // Return the record.
-                        Output::Record(id, checksum, match output.get("value").and_then(|v| v.as_str()) {
-                            Some(value) => {
-                                Some(Record::<N, Ciphertext<N>>::from_str(value).map_err(de::Error::custom)?)
-                            }
-                            None => None,
-                        })
+                        Output::Record(
+                            id,
+                            checksum,
+                            match output.get("value").and_then(|v| v.as_str()) {
+                                Some(value) => {
+                                    Some(Record::<N, Ciphertext<N>>::from_str(value).map_err(de::Error::custom)?)
+                                }
+                                None => None,
+                            },
+                            match output.get("sender_ciphertext").and_then(|v| v.as_str()) {
+                                Some(value) => Some(Field::<N>::from_str(value).map_err(de::Error::custom)?),
+                                None => None,
+                            },
+                        )
                     }
                     Some("external_record") => Output::ExternalRecord(id),
                     Some("future") => Output::Future(id, match output.get("value").and_then(|v| v.as_str()) {

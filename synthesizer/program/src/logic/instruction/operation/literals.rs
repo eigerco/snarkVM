@@ -128,7 +128,7 @@ impl<N: Network, O: Operation<N, Literal<N>, LiteralType, NUM_OPERANDS>, const N
             inputs.iter().map(|input| RegisterType::Plaintext(PlaintextType::from(input.to_type()))).collect();
 
         // Compute the operation.
-        let output = O::execute(&inputs.try_into().map_err(|_| anyhow!("Failed to prepare operands in evaluate"))?)?;
+        let output = O::execute(&inputs.try_into().map_err(|_| anyhow!("Failed to prepare operands in execute"))?)?;
         // Compute the output type.
         let output_type = RegisterType::Plaintext(PlaintextType::from(output.to_type()));
 
