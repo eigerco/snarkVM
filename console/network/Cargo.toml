@@ -9,31 +9,17 @@ license = "Apache-2.0"
 edition = "2024"
 
 [features]
-<<<<<<< HEAD
-default = ["snarkvm-algorithms/polycommit_full"]
-wasm = ["snarkvm-algorithms/polycommit_wasm", "snarkvm-parameters/wasm"]
-test = []
-test_targets = []
-=======
 filesystem = [ "snarkvm-parameters/filesystem" ]
 wasm = [
   "snarkvm-parameters/wasm"
 ]
 test = [ ]
 test_targets = [ ]
->>>>>>> upstream/staging
 test_consensus_heights = [ ]
 cosmwasm = ["snarkvm-parameters/cosmwasm", "snarkvm-utilities/cosmwasm"]
 
 [dependencies.snarkvm-algorithms]
-<<<<<<< HEAD
-path = "../../algorithms"
-version = "=3.8.0"
-default-features = false
-features = ["snark"]
-=======
 workspace = true
->>>>>>> upstream/staging
 
 [dependencies.snarkvm-console-algorithms]
 workspace = true
@@ -45,15 +31,8 @@ workspace = true
 workspace = true
 
 [dependencies.snarkvm-console-types]
-<<<<<<< HEAD
-path = "../types"
-version = "=3.8.0"
-default-features = false
-features = ["field", "group", "scalar"]
-=======
 workspace = true
 features = [ "field", "group", "scalar" ]
->>>>>>> upstream/staging
 
 [dependencies.snarkvm-curves]
 workspace = true
