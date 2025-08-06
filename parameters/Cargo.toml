@@ -31,14 +31,12 @@ no_std_out = [ ]
 remote = [ "curl" ]
 rocks = [ "snarkvm-ledger-store/rocks" ]
 wasm = [ "encoding", "js-sys", "web-sys" ]
-<<<<<<< HEAD
+dev-print = [ "snarkvm-utilities/dev-print" ]
 cosmwasm = [ "getrandom/custom" ]
 
 [dependencies.getrandom]
 version = "0.2"
-=======
-dev-print = [ "snarkvm-utilities/dev-print" ]
->>>>>>> v4.0.0
+optional = true
 
 [dependencies.snarkvm-curves]
 path = "../curves"
