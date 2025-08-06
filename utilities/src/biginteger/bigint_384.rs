@@ -28,11 +28,7 @@ use crate::{
 };
 
 use anyhow::Result;
-<<<<<<< HEAD
-use core::fmt::{Debug, Display};
-=======
 use num_bigint::BigUint;
->>>>>>> upstream/staging
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
