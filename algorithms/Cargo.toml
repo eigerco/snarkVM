@@ -133,52 +133,10 @@ workspace = true
 features = [ "filesystem" ]
 
 [features]
-<<<<<<< HEAD
-default = [
-  "full",
-  "snarkvm-curves/default",
-  "snarkvm-fields/default",
-  "snarkvm-utilities/default"
-]
-full = [
-  "crypto_hash",
-  "fft",
-  "msm",
-  "polycommit_full",
-  "r1cs",
-  "snark"
-]
-wasm = [
-  "crypto_hash",
-  "fft",
-  "msm",
-  "polycommit_wasm",
-  "r1cs",
-  "snark",
-  "wasm-bindgen-futures"
-]
-cosmwasm = [
-  "crypto_hash",
-  "fft",
-  "msm",
-  "polycommit_cosmwasm",
-  "r1cs",
-  "snark",
-]
-=======
->>>>>>> upstream/staging
 cuda = [ "snarkvm-algorithms-cuda" ]
 locktick = [ "snarkvm-parameters/locktick" ]
 profiler = [ "aleo-std/profiler" ]
 test = [ ]
-<<<<<<< HEAD
-polycommit = [ "crypto_hash", "fft", "msm", "rand_core" ]
-polycommit_wasm = [ "polycommit", "snarkvm-parameters/wasm" ]
-polycommit_cosmwasm = [ "polycommit", "snarkvm-parameters/cosmwasm" ]
-polycommit_full = [ "polycommit", "snarkvm-parameters/default" ]
-r1cs = [ "cfg-if", "fxhash", "indexmap" ]
-=======
->>>>>>> upstream/staging
 serial = [
   "snarkvm-curves/serial",
   "snarkvm-fields/serial",
