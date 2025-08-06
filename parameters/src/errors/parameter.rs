@@ -39,11 +39,7 @@ pub enum ParameterError {
     FilesystemDisabled,
 }
 
-<<<<<<< HEAD
-#[cfg(not(any(feature = "wasm", feature = "cosmwasm")))]
-=======
-#[cfg(all(not(feature = "wasm"), not(target_env = "sgx")))]
->>>>>>> upstream/staging
+#[cfg(not(any(feature = "wasm", feature = "cosmwasm", target_env = "sgx")))]
 impl From<curl::Error> for ParameterError {
     fn from(error: curl::Error) -> Self {
         ParameterError::Crate("curl::error", format!("{error:?}"))

@@ -68,11 +68,7 @@ macro_rules! impl_store_and_remote_fetch {
             Ok(())
         }
 
-<<<<<<< HEAD
-        #[cfg(not(any(feature = "wasm", feature = "cosmwasm")))]
-=======
-        #[cfg(all(not(feature = "wasm"), not(target_env = "sgx")))]
->>>>>>> upstream/staging
+        #[cfg(not(any(feature = "wasm", feature = "cosmwasm", target_env = "sgx")))]
         fn remote_fetch(buffer: &mut Vec<u8>, url: &str) -> Result<(), $crate::errors::ParameterError> {
             let mut easy = curl::easy::Easy::new();
             easy.follow_location(true)?;
