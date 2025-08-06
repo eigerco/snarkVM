@@ -19,12 +19,8 @@ pub use genesis::*;
 /// The restrictions list as a JSON-compatible string.
 pub const RESTRICTIONS_LIST: &str = include_str!("./resources/restrictions.json");
 
-<<<<<<< HEAD
 #[cfg(not(feature = "cosmwasm"))]
-const REMOTE_URL: &str = "https://parameters.aleo.org/testnet";
-=======
 const REMOTE_URL: &str = "https://parameters.provable.com/testnet";
->>>>>>> upstream/staging
 
 // BondPublic
 impl_remote!(BondPublicProver, REMOTE_URL, "resources/", "bond_public", "prover", "credits");
