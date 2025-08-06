@@ -11,12 +11,10 @@ default = []
 cosmwasm = ["snarkvm-console/cosmwasm", "getrandom"]
 
 [dependencies.snarkvm-console]
-path = "../console"
-version = "=3.8.0"
+workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.snarkvm-console]
-path = "../console"
-version = "=3.8.0"
+workspace = true
 features = ["cosmwasm"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.getrandom]

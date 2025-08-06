@@ -18,6 +18,10 @@ test_targets = [ ]
 test_consensus_heights = [ ]
 cosmwasm = ["snarkvm-parameters/cosmwasm", "snarkvm-utilities/cosmwasm"]
 
+[dependencies.snarkvm-utilities]
+workspace = true
+optional = true
+
 [dependencies.snarkvm-algorithms]
 workspace = true
 
