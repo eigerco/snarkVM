@@ -36,6 +36,9 @@ pub trait Aleo: Environment {
     /// Initializes the global constants for the Aleo environment.
     fn initialize_global_constants();
 
+    /// Returns the commitment domain as a constant field element.
+    fn commitment_domain() -> Field<Self>;
+
     /// Returns the encryption domain as a constant field element.
     fn encryption_domain() -> Field<Self>;
 

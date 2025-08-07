@@ -319,7 +319,6 @@ impl<P: Fp2Parameters> Neg for Fp2<P> {
     type Output = Self;
 
     #[inline]
-    #[must_use]
     fn neg(self) -> Self {
         let mut res = self;
         res.c0 = res.c0.neg();

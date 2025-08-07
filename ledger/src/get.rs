@@ -231,11 +231,27 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         }
     }
 
-    /// Returns the program for the given program ID.
+    /// Returns the latest edition for the given `program ID`.
+    pub fn get_latest_edition_for_program(&self, program_id: &ProgramID<N>) -> Result<u16> {
+        match self.vm.block_store().get_latest_edition_for_program(program_id)? {
+            Some(edition) => Ok(edition),
+            None => bail!("Missing latest edition for program ID {program_id}"),
+        }
+    }
+
+    /// Returns the latest program for the given `program ID`.
     pub fn get_program(&self, program_id: ProgramID<N>) -> Result<Program<N>> {
-        match self.vm.block_store().get_program(&program_id)? {
+        match self.vm.block_store().get_latest_program(&program_id)? {
             Some(program) => Ok(program),
             None => bail!("Missing program for ID {program_id}"),
+        }
+    }
+
+    /// Returns the program for the given `program ID` and `edition`.
+    pub fn get_program_for_edition(&self, program_id: ProgramID<N>, edition: u16) -> Result<Program<N>> {
+        match self.vm.block_store().get_program_for_edition(&program_id, edition)? {
+            Some(program) => Ok(program),
+            None => bail!("Missing program for ID {program_id} and edition {edition}"),
         }
     }
 
@@ -313,5 +329,30 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
                 (mapping_validator == validator && bonded_address != *validator).then_some(Ok(bonded_address))
             })
             .collect::<Result<_>>()
+    }
+
+    /// Returns the amount of microcredits that the given address has bonded.
+    pub fn get_bonded_amount(&self, address: &Address<N>) -> Result<u64> {
+        // Construct the credits.aleo program ID.
+        let credits_program_id = ProgramID::from_str("credits.aleo")?;
+        // Construct the bonded mapping name.
+        let bonded_mapping = Identifier::from_str("bonded")?;
+        // Construct the bonded mapping key name.
+        let bonded_mapping_key = Plaintext::from(Literal::Address(*address));
+        // Construct the bond_state microcredits key.
+        let microcredits_key = Identifier::from_str("microcredits")?;
+        // Get the bond state for the given staker.
+        let bond_state =
+            self.vm.finalize_store().get_value_confirmed(credits_program_id, bonded_mapping, &bonded_mapping_key)?;
+        // Find the microcredits in the bond state.
+        match bond_state {
+            Some(Value::Plaintext(Plaintext::Struct(bond_state, _))) => match bond_state.get(&microcredits_key) {
+                Some(Plaintext::Literal(Literal::U64(amount), _)) => Ok(**amount),
+                _ => bail!("Expected 'microcredits' as a u64 in bond_state struct."),
+            },
+            // If the address is not bonded, then return 0.
+            None => Ok(0),
+            _ => bail!("Invalid bond_state in finalize storage."),
+        }
     }
 }

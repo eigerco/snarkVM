@@ -92,6 +92,8 @@ impl<N: Network> TransactionStorage<N> for TransactionMemory<N> {
 pub struct DeploymentMemory<N: Network> {
     /// The ID map.
     id_map: MemoryMap<N::TransactionID, ProgramID<N>>,
+    /// The ID edition map.
+    id_edition_map: MemoryMap<N::TransactionID, u16>,
     /// The edition map.
     edition_map: MemoryMap<ProgramID<N>, u16>,
     /// The reverse ID map.
@@ -111,6 +113,7 @@ pub struct DeploymentMemory<N: Network> {
 #[rustfmt::skip]
 impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     type IDMap = MemoryMap<N::TransactionID, ProgramID<N>>;
+    type IDEditionMap = MemoryMap<N::TransactionID, u16>;
     type EditionMap = MemoryMap<ProgramID<N>, u16>;
     type ReverseIDMap = MemoryMap<(ProgramID<N>, u16), N::TransactionID>;
     type OwnerMap = MemoryMap<(ProgramID<N>, u16), ProgramOwner<N>>;
@@ -123,6 +126,7 @@ impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     fn open(fee_store: FeeStore<N, Self::FeeStorage>) -> Result<Self> {
         Ok(Self {
             id_map: MemoryMap::default(),
+            id_edition_map: MemoryMap::default(),
             edition_map: MemoryMap::default(),
             reverse_id_map: MemoryMap::default(),
             owner_map: MemoryMap::default(),
@@ -136,6 +140,11 @@ impl<N: Network> DeploymentStorage<N> for DeploymentMemory<N> {
     /// Returns the ID map.
     fn id_map(&self) -> &Self::IDMap {
         &self.id_map
+    }
+
+    /// Returns the ID edition map.
+    fn id_edition_map(&self) -> &Self::IDEditionMap {
+        &self.id_edition_map
     }
 
     /// Returns the edition map.

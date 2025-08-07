@@ -22,7 +22,7 @@ use std::borrow::Cow;
 pub trait Map<
     'a,
     K: 'a + Copy + Clone + PartialEq + Eq + Hash + Serialize + Deserialize<'a> + Send + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + Deserialize<'a> + Send + Sync,
+    V: 'a + Clone + Serialize + Deserialize<'a> + Send + Sync,
 >: Clone + MapRead<'a, K, V> + Send + Sync
 {
     ///
@@ -93,7 +93,7 @@ pub trait Map<
 pub trait MapRead<
     'a,
     K: 'a + Copy + Clone + PartialEq + Eq + Hash + Serialize + Deserialize<'a> + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + Deserialize<'a> + Sync,
+    V: 'a + Clone + Serialize + Deserialize<'a> + Sync,
 >
 {
     type PendingIterator: Iterator<Item = (Cow<'a, K>, Option<Cow<'a, V>>)>;

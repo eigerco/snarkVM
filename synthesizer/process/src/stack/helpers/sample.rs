@@ -73,8 +73,11 @@ impl<N: Network> Stack<N> {
             })
             .collect::<Result<IndexMap<_, _>>>()?;
 
+        // Set the record version.
+        let version = U8::<N>::rand(rng);
+
         // Return the record.
-        Record::<N, Plaintext<N>>::from_plaintext(owner, data, nonce)
+        Record::<N, Plaintext<N>>::from_plaintext(owner, data, nonce, version)
     }
 
     /// Samples an entry according to the given entry type.

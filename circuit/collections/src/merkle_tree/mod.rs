@@ -16,6 +16,8 @@
 mod helpers;
 use helpers::{LeafHash, PathHash};
 
+mod leaf_index;
+
 mod verify;
 
 #[cfg(all(test, feature = "console"))]

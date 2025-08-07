@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-cosmwasm"
-version = "3.8.0"
+version = "4.0.0"
 edition = "2021"
 
 [lib]
@@ -12,11 +12,11 @@ cosmwasm = ["snarkvm-console/cosmwasm", "getrandom"]
 
 [dependencies.snarkvm-console]
 path = "../console"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.snarkvm-console]
 path = "../console"
-version = "=3.8.0"
+version = "=4.0.0"
 features = ["cosmwasm"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.getrandom]

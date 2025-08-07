@@ -688,7 +688,6 @@ impl<P: Fp384Parameters> Neg for Fp384<P> {
     type Output = Self;
 
     #[inline]
-    #[must_use]
     fn neg(self) -> Self {
         if !self.is_zero() {
             let mut tmp = P::MODULUS;

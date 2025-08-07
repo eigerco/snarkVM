@@ -22,6 +22,9 @@ use console::{
 use ledger_store::{BlockStorage, BlockStore};
 use synthesizer_program::Program;
 
+// ureq re-exports the `http` crate.
+use ureq::http;
+
 #[derive(Clone)]
 pub enum Query<N: Network, B: BlockStorage<N>> {
     /// The block store from the VM.
@@ -68,13 +71,13 @@ impl<N: Network, B: BlockStorage<N>> QueryTrait<N> for Query<N, B> {
             Self::VM(block_store) => Ok(block_store.current_state_root()),
             Self::REST(url) => match N::ID {
                 console::network::MainnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/mainnet/stateRoot/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/mainnet/stateRoot/latest"))?.body_mut().read_json()?)
                 }
                 console::network::TestnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/testnet/stateRoot/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/testnet/stateRoot/latest"))?.body_mut().read_json()?)
                 }
                 console::network::CanaryV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/canary/stateRoot/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/canary/stateRoot/latest"))?.body_mut().read_json()?)
                 }
                 _ => bail!("Unsupported network ID in inclusion query"),
             },
@@ -107,13 +110,13 @@ impl<N: Network, B: BlockStorage<N>> QueryTrait<N> for Query<N, B> {
             Self::VM(block_store) => block_store.get_state_path_for_commitment(commitment),
             Self::REST(url) => match N::ID {
                 console::network::MainnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/mainnet/statePath/{commitment}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/mainnet/statePath/{commitment}"))?.body_mut().read_json()?)
                 }
                 console::network::TestnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/testnet/statePath/{commitment}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/testnet/statePath/{commitment}"))?.body_mut().read_json()?)
                 }
                 console::network::CanaryV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/canary/statePath/{commitment}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/canary/statePath/{commitment}"))?.body_mut().read_json()?)
                 }
                 _ => bail!("Unsupported network ID in inclusion query"),
             },
@@ -146,13 +149,13 @@ impl<N: Network, B: BlockStorage<N>> QueryTrait<N> for Query<N, B> {
             Self::VM(block_store) => Ok(block_store.max_height().unwrap_or_default()),
             Self::REST(url) => match N::ID {
                 console::network::MainnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/mainnet/block/height/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/mainnet/block/height/latest"))?.body_mut().read_json()?)
                 }
                 console::network::TestnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/testnet/block/height/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/testnet/block/height/latest"))?.body_mut().read_json()?)
                 }
                 console::network::CanaryV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/canary/block/height/latest"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/canary/block/height/latest"))?.body_mut().read_json()?)
                 }
                 _ => bail!("Unsupported network ID in inclusion query"),
             },
@@ -184,18 +187,18 @@ impl<N: Network, B: BlockStorage<N>> Query<N, B> {
     /// Returns the program for the given program ID.
     pub fn get_program(&self, program_id: &ProgramID<N>) -> Result<Program<N>> {
         match self {
-            Self::VM(block_store) => {
-                block_store.get_program(program_id)?.ok_or_else(|| anyhow!("Program {program_id} not found in storage"))
-            }
+            Self::VM(block_store) => block_store
+                .get_latest_program(program_id)?
+                .ok_or_else(|| anyhow!("Program {program_id} not found in storage")),
             Self::REST(url) => match N::ID {
                 console::network::MainnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/mainnet/program/{program_id}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/mainnet/program/{program_id}"))?.body_mut().read_json()?)
                 }
                 console::network::TestnetV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/testnet/program/{program_id}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/testnet/program/{program_id}"))?.body_mut().read_json()?)
                 }
                 console::network::CanaryV0::ID => {
-                    Ok(Self::get_request(&format!("{url}/canary/program/{program_id}"))?.into_json()?)
+                    Ok(Self::get_request(&format!("{url}/canary/program/{program_id}"))?.body_mut().read_json()?)
                 }
                 _ => bail!("Unsupported network ID in inclusion query"),
             },
@@ -206,9 +209,9 @@ impl<N: Network, B: BlockStorage<N>> Query<N, B> {
     #[cfg(feature = "async")]
     pub async fn get_program_async(&self, program_id: &ProgramID<N>) -> Result<Program<N>> {
         match self {
-            Self::VM(block_store) => {
-                block_store.get_program(program_id)?.ok_or_else(|| anyhow!("Program {program_id} not found in storage"))
-            }
+            Self::VM(block_store) => block_store
+                .get_latest_program(program_id)?
+                .ok_or_else(|| anyhow!("Program {program_id} not found in storage")),
             Self::REST(url) => match N::ID {
                 console::network::MainnetV0::ID => {
                     Ok(Self::get_request_async(&format!("{url}/mainnet/program/{program_id}")).await?.json().await?)
@@ -225,15 +228,15 @@ impl<N: Network, B: BlockStorage<N>> Query<N, B> {
     }
 
     /// Performs a GET request to the given URL.
-    fn get_request(url: &str) -> Result<ureq::Response> {
+    fn get_request(url: &str) -> Result<http::Response<ureq::Body>> {
         let response = ureq::get(url).call()?;
-        if response.status() == 200 { Ok(response) } else { bail!("Failed to fetch from {url}") }
+        if response.status() == http::StatusCode::OK { Ok(response) } else { bail!("Failed to fetch from {url}") }
     }
 
     /// Performs a GET request to the given URL.
     #[cfg(feature = "async")]
     async fn get_request_async(url: &str) -> Result<reqwest::Response> {
         let response = reqwest::get(url).await?;
-        if response.status() == 200 { Ok(response) } else { bail!("Failed to fetch from {url}") }
+        if response.status() == http::StatusCode::OK { Ok(response) } else { bail!("Failed to fetch from {url}") }
     }
 }

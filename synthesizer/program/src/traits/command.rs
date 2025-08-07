@@ -19,7 +19,7 @@ use console::{
     program::{Identifier, Register},
 };
 
-pub trait CommandTrait<N: Network>: Clone + Parser + FromBytes + ToBytes {
+pub trait CommandTrait<N: Network>: Clone + PartialEq + Eq + Parser + FromBytes + ToBytes + Send + Sync {
     /// Returns the destination registers of the command.
     fn destinations(&self) -> Vec<Register<N>>;
     /// Returns the branch target, if the command is a branch command.

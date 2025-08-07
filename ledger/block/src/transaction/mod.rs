@@ -136,6 +136,19 @@ impl<N: Network> Transaction<N> {
             _ => false,
         }
     }
+
+    /// Returns `true` if this transaction contains a call to `credits.aleo/upgrade`.
+    #[inline]
+    pub fn contains_upgrade(&self) -> bool {
+        match self {
+            // Case 1 - The transaction contains a transition that calls 'credits.aleo/upgrade'.
+            Transaction::Execute(_, _, execution, _) => {
+                execution.transitions().any(|transition| transition.is_upgrade())
+            }
+            // Otherwise, return 'false'.
+            _ => false,
+        }
+    }
 }
 
 impl<N: Network> Transaction<N> {
@@ -438,11 +451,15 @@ pub mod test_helpers {
     type CurrentNetwork = MainnetV0;
 
     /// Samples a random deployment transaction with a private or public fee.
-    pub fn sample_deployment_transaction(is_fee_private: bool, rng: &mut TestRng) -> Transaction<CurrentNetwork> {
+    pub fn sample_deployment_transaction(
+        edition: u16,
+        is_fee_private: bool,
+        rng: &mut TestRng,
+    ) -> Transaction<CurrentNetwork> {
         // Sample a private key.
         let private_key = PrivateKey::new(rng).unwrap();
         // Sample a deployment.
-        let deployment = crate::transaction::deployment::test_helpers::sample_deployment(rng);
+        let deployment = crate::transaction::deployment::test_helpers::sample_deployment(edition, rng);
 
         // Compute the deployment ID.
         let deployment_id = deployment.to_deployment_id().unwrap();
@@ -506,8 +523,8 @@ mod tests {
 
         // Transaction IDs are created using `transaction_tree`.
         for expected in [
-            crate::transaction::test_helpers::sample_deployment_transaction(true, rng),
-            crate::transaction::test_helpers::sample_deployment_transaction(false, rng),
+            crate::transaction::test_helpers::sample_deployment_transaction(0, true, rng),
+            crate::transaction::test_helpers::sample_deployment_transaction(0, false, rng),
             crate::transaction::test_helpers::sample_execution_transaction_with_fee(true, rng),
             crate::transaction::test_helpers::sample_execution_transaction_with_fee(false, rng),
         ]

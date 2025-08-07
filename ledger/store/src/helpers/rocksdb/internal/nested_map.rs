@@ -105,7 +105,7 @@ impl<
     'a,
     M: 'a + Copy + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned + Send + Sync,
     K: 'a + Clone + Debug + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
+    V: 'a + Clone + Serialize + DeserializeOwned + Send + Sync,
 > NestedMap<'a, M, K, V> for NestedDataMap<M, K, V>
 {
     ///
@@ -346,7 +346,7 @@ impl<
     'a,
     M: 'a + Copy + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned + Send + Sync,
     K: 'a + Clone + Debug + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned + Send + Sync,
+    V: 'a + Clone + Serialize + DeserializeOwned + Send + Sync,
 > NestedMapRead<'a, M, K, V> for NestedDataMap<M, K, V>
 {
     type Iterator = NestedIter<'a, M, K, V>;
@@ -597,7 +597,7 @@ pub struct NestedIter<
     'a,
     M: 'a + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
     K: 'a + Debug + PartialEq + Eq + Serialize + DeserializeOwned,
-    V: 'a + PartialEq + Eq + Serialize + DeserializeOwned,
+    V: 'a + Serialize + DeserializeOwned,
 > {
     db_iter: rocksdb::DBRawIterator<'a>,
     _phantom: PhantomData<(M, K, V)>,
@@ -607,7 +607,7 @@ impl<
     'a,
     M: 'a + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
     K: 'a + Debug + PartialEq + Eq + Serialize + DeserializeOwned,
-    V: 'a + PartialEq + Eq + Serialize + DeserializeOwned,
+    V: 'a + Serialize + DeserializeOwned,
 > NestedIter<'a, M, K, V>
 {
     pub(super) fn new(db_iter: rocksdb::DBIterator<'a>) -> Self {
@@ -619,7 +619,7 @@ impl<
     'a,
     M: 'a + Clone + Debug + PartialEq + Eq + Hash + Serialize + DeserializeOwned,
     K: 'a + Clone + Debug + PartialEq + Eq + Serialize + DeserializeOwned,
-    V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned,
+    V: 'a + Clone + Serialize + DeserializeOwned,
 > Iterator for NestedIter<'a, M, K, V>
 {
     type Item = (Cow<'a, M>, Cow<'a, K>, Cow<'a, V>);
@@ -724,18 +724,18 @@ impl<
 }
 
 /// An iterator over the values of a prefix.
-pub struct NestedValues<'a, V: 'a + PartialEq + Eq + Serialize + DeserializeOwned> {
+pub struct NestedValues<'a, V: 'a + Serialize + DeserializeOwned> {
     db_iter: rocksdb::DBRawIterator<'a>,
     _phantom: PhantomData<V>,
 }
 
-impl<'a, V: 'a + PartialEq + Eq + Serialize + DeserializeOwned> NestedValues<'a, V> {
+impl<'a, V: 'a + Serialize + DeserializeOwned> NestedValues<'a, V> {
     pub(crate) fn new(db_iter: rocksdb::DBIterator<'a>) -> Self {
         Self { db_iter: db_iter.into(), _phantom: PhantomData }
     }
 }
 
-impl<'a, V: 'a + Clone + PartialEq + Eq + Serialize + DeserializeOwned> Iterator for NestedValues<'a, V> {
+impl<'a, V: 'a + Clone + Serialize + DeserializeOwned> Iterator for NestedValues<'a, V> {
     type Item = Cow<'a, V>;
 
     fn next(&mut self) -> Option<Self::Item> {

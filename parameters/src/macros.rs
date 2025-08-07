@@ -85,10 +85,8 @@ macro_rules! impl_store_and_remote_fetch {
                 easy.progress_function(|total_download, current_download, _, _| {
                     let percent = (current_download / total_download) * 100.0;
                     let size_in_megabytes = total_download as u64 / 1_048_576;
-                    let output = format!(
-                        "\r{:>15} - {:.2}% complete ({:#} MB total)",
-                        "Installation", percent, size_in_megabytes
-                    );
+                    let output =
+                        format!("\r{:>15} - {:.2}% complete ({:#} MB total)", "Installation", percent, size_in_megabytes);
                     print!("{}", output.dimmed());
                     true
                 })?;
@@ -123,9 +121,8 @@ macro_rules! impl_store_and_remote_fetch {
                     "Download failed - This browser does not support synchronous requests".to_string(),
                 )
             })?;
-            xhr.send().map_err(|_| {
-                $crate::errors::ParameterError::Wasm("Download failed - XMLHttpRequest failed".to_string())
-            })?;
+            xhr.send()
+                .map_err(|_| $crate::errors::ParameterError::Wasm("Download failed - XMLHttpRequest failed".to_string()))?;
 
             // Wait for the response in a blocking fashion.
             if xhr.response().is_ok() && xhr.status().unwrap() == 200 {
@@ -257,12 +254,9 @@ macro_rules! impl_local {
             pub const METADATA: &'static str = include_str!(concat!($local_dir, $fname, ".metadata"));
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                let expected_checksum: String =
-                    metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
-                let expected_size: usize =
-                    metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
+                let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                let expected_checksum: String = metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
+                let expected_size: usize = metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
 
                 let _filepath = concat!($local_dir, $fname, ".", "usrs");
                 let buffer = include_bytes!(concat!($local_dir, $fname, ".", "usrs"));
@@ -279,23 +273,22 @@ macro_rules! impl_local {
             }
         }
     };
-    ($name: ident, $local_dir: expr, $fname: tt, $ftype: tt) => {
+    ($name: ident, $local_dir: expr, $fname: tt, $ftype: tt, $credits_version: tt) => {
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name;
 
         impl $name {
-            pub const METADATA: &'static str = include_str!(concat!($local_dir, $fname, ".metadata"));
+            pub const METADATA: &'static str = include_str!(concat!($local_dir, $credits_version, "/", $fname, ".metadata"));
 
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
                 let expected_checksum: String =
                     metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
                 let expected_size: usize =
                     metadata[concat!($ftype, "_size")].to_string().parse().expect("Failed to retrieve the file size");
 
-                let _filepath = concat!($local_dir, $fname, ".", $ftype);
-                let buffer = include_bytes!(concat!($local_dir, $fname, ".", $ftype));
+                let _filepath = concat!($local_dir, $credits_version, "/", $fname, ".", $ftype);
+                let buffer = include_bytes!(concat!($local_dir, $credits_version, "/", $fname, ".", $ftype));
 
                 impl_load_bytes_logic_local!(_filepath, buffer, expected_size, expected_checksum);
             }
@@ -304,7 +297,7 @@ macro_rules! impl_local {
         paste::item! {
             #[cfg(test)]
             #[test]
-            fn [< test_ $fname _ $ftype >]() {
+            fn [< test_ $credits_version _ $fname _ $ftype >]() {
                 assert!($name::load_bytes().is_ok());
             }
         }
@@ -321,33 +314,22 @@ macro_rules! impl_remote {
 
             impl_store_and_remote_fetch!();
 
+            #[cfg(not(feature = "cosmwasm"))]
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                #[cfg(not(feature = "cosmwasm"))]
-                {
-                    let metadata: serde_json::Value =
-                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                    let expected_checksum: String =
-                        metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
-                    let expected_size: usize =
-                        metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
+                let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                let expected_checksum: String = metadata["checksum"].as_str().expect("Failed to parse checksum").to_string();
+                let expected_size: usize = metadata["size"].to_string().parse().expect("Failed to retrieve the file size");
 
-                    // Construct the versioned filename.
-                    let filename = match expected_checksum.get(0..7) {
-                        Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
-                        _ => format!("{}.{}", $fname, "usrs"),
-                    };
+                // Construct the versioned filename.
+                let filename = match expected_checksum.get(0..7) {
+                    Some(sum) => format!("{}.{}.{}", $fname, "usrs", sum),
+                    _ => format!("{}.{}", $fname, "usrs"),
+                };
+                impl_load_bytes_logic_remote!($remote_url, $local_dir, &filename, metadata, expected_checksum, expected_size);
+            }
 
-                    impl_load_bytes_logic_remote!(
-                        $remote_url,
-                        $local_dir,
-                        &filename,
-                        metadata,
-                        expected_checksum,
-                        expected_size
-                    );
-                }
-
-                #[cfg(feature = "cosmwasm")]
+            #[cfg(feature = "cosmwasm")]
+            pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
                 unimplemented!("cosmwasm feature is not supported for remote parameters");
             }
         }
@@ -359,51 +341,41 @@ macro_rules! impl_remote {
             }
         }
     };
-    ($name: ident, $remote_url: expr, $local_dir: expr, $fname: tt, $ftype: tt) => {
+    ($name: ident, $remote_url: expr, $local_dir: expr, $fname: tt, $ftype: tt, $credits_version: tt) => {
         pub struct $name;
 
         impl $name {
-            pub const METADATA: &'static str = include_str!(concat!($local_dir, $fname, ".metadata"));
+            pub const METADATA: &'static str = include_str!(concat!($local_dir, $credits_version, "/", $fname, ".metadata"));
 
             impl_store_and_remote_fetch!();
 
+            #[cfg(not(feature = "cosmwasm"))]
             pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
-                #[cfg(not(feature = "cosmwasm"))]
-                {
-                    let metadata: serde_json::Value =
-                        serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
-                    let expected_checksum: String =
-                        metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
-                    let expected_size: usize = metadata[concat!($ftype, "_size")]
-                        .to_string()
-                        .parse()
-                        .expect("Failed to retrieve the file size");
+                let metadata: serde_json::Value = serde_json::from_str(Self::METADATA).expect("Metadata was not well-formatted");
+                let expected_checksum: String =
+                    metadata[concat!($ftype, "_checksum")].as_str().expect("Failed to parse checksum").to_string();
+                let expected_size: usize =
+                    metadata[concat!($ftype, "_size")].to_string().parse().expect("Failed to retrieve the file size");
 
-                    // Construct the versioned filename.
-                    let filename = match expected_checksum.get(0..7) {
-                        Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
-                        _ => format!("{}.{}", $fname, $ftype),
-                    };
+                // Construct the versioned filename.
+                let filename = match expected_checksum.get(0..7) {
+                    Some(sum) => format!("{}.{}.{}", $fname, $ftype, sum),
+                    _ => format!("{}.{}", $fname, $ftype),
+                };
 
-                    impl_load_bytes_logic_remote!(
-                        $remote_url,
-                        $local_dir,
-                        &filename,
-                        metadata,
-                        expected_checksum,
-                        expected_size
-                    );
-                }
+                impl_load_bytes_logic_remote!($remote_url, $local_dir, &filename, metadata, expected_checksum, expected_size);
+            }
 
-                #[cfg(feature = "cosmwasm")]
-                unimplemented!()
+            #[cfg(feature = "cosmwasm")]
+            pub fn load_bytes() -> Result<Vec<u8>, $crate::errors::ParameterError> {
+                unimplemented!("cosmwasm feature is not supported for remote parameters");
             }
         }
 
         paste::item! {
             #[cfg(test)]
             #[test]
-            fn [< test_ $fname _ $ftype >]() {
+            fn [< test_ $credits_version _ $fname _ $ftype >]() {
                 assert!($name::load_bytes().is_ok());
             }
         }

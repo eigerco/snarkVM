@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-console-program"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Program operations for a decentralized virtual machine"
 homepage = "https://aleo.org"
@@ -11,30 +11,31 @@ edition = "2021"
 [features]
 default = [ ]
 test = [ ]
+dev-print = [ "snarkvm-utilities/dev-print" ]
 
 [dependencies.snarkvm-console-account]
 path = "../account"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.snarkvm-console-algorithms]
 path = "../algorithms"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.snarkvm-console-collections]
 path = "../collections"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.snarkvm-console-network]
 path = "../network"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.snarkvm-console-types]
 path = "../types"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.snarkvm-utilities]
 path = "../../utilities"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.enum_index]
 version = "0.2"
@@ -56,9 +57,6 @@ version = "0.2"
 
 [dependencies.once_cell]
 version = "1.18.0"
-
-[dependencies.paste]
-version = "1.0"
 
 [dependencies.serde_json]
 version = "1.0"

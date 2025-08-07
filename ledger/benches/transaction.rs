@@ -32,14 +32,14 @@ use criterion::Criterion;
 use indexmap::IndexMap;
 
 #[cfg(not(feature = "rocks"))]
-type LedgerType<N> = ledger_store::helpers::memory::ConsensusMemory<N>;
+type LedgerType = ledger_store::helpers::memory::ConsensusMemory<MainnetV0>;
 #[cfg(feature = "rocks")]
-type LedgerType<N> = ledger_store::helpers::rocksdb::ConsensusDB<N>;
+type LedgerType = ledger_store::helpers::rocksdb::ConsensusDB<MainnetV0>;
 
 fn initialize_vm<R: Rng + CryptoRng>(
     private_key: &PrivateKey<MainnetV0>,
     rng: &mut R,
-) -> (VM<MainnetV0, LedgerType<MainnetV0>>, Vec<Record<MainnetV0, Plaintext<MainnetV0>>>) {
+) -> (VM<MainnetV0, LedgerType>, Vec<Record<MainnetV0, Plaintext<MainnetV0>>>) {
     // Initialize the VM.
     let vm = VM::from(ConsensusStore::open(StorageMode::new_test(None)).unwrap()).unwrap();
 

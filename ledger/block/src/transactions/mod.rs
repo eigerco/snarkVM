@@ -106,6 +106,11 @@ impl<N: Network> Transactions<N> {
     pub fn num_finalize(&self) -> usize {
         cfg_values!(self.transactions).map(|tx| tx.num_finalize()).sum()
     }
+
+    /// Returns the index of the transaction with the given ID, if it exists.
+    pub fn index_of(&self, transaction_id: &N::TransactionID) -> Option<usize> {
+        self.transactions.get_index_of(transaction_id)
+    }
 }
 
 impl<N: Network> Transactions<N> {
@@ -131,7 +136,7 @@ impl<N: Network> Transactions<N> {
         &self,
         unconfirmed_transaction_id: &N::TransactionID,
     ) -> Option<&ConfirmedTransaction<N>> {
-        cfg_find!(self.transactions, unconfirmed_transaction_id, contains_unconfirmed_transaction_id)
+        cfg_find!(self.transactions, |txn| txn.contains_unconfirmed_transaction_id(unconfirmed_transaction_id))
     }
 
     /// Returns the transaction with the given transition ID, if it exists.
@@ -139,7 +144,7 @@ impl<N: Network> Transactions<N> {
     /// If the given transition ID is a fee transition for a rejected transaction,
     /// this will return the fee transaction.
     pub fn find_transaction_for_transition_id(&self, transition_id: &N::TransitionID) -> Option<&Transaction<N>> {
-        cfg_find!(self.transactions, transition_id, contains_transition).map(|tx| tx.transaction())
+        cfg_find!(self.transactions, |txn| txn.contains_transition(transition_id)).map(|tx| tx.transaction())
     }
 
     /// Returns the unconfirmed transaction with the given transition ID, if it exists.
@@ -150,7 +155,7 @@ impl<N: Network> Transactions<N> {
         &self,
         transition_id: &N::TransitionID,
     ) -> Result<Option<Transaction<N>>> {
-        let result = cfg_find!(self.transactions, transition_id, contains_transition);
+        let result = cfg_find!(self.transactions, |tx| tx.contains_transition(transition_id));
 
         match result {
             Some(txn) => Ok(Some(txn.to_unconfirmed_transaction()?)),
@@ -160,32 +165,32 @@ impl<N: Network> Transactions<N> {
 
     /// Returns the transaction with the given serial number, if it exists.
     pub fn find_transaction_for_serial_number(&self, serial_number: &Field<N>) -> Option<&Transaction<N>> {
-        cfg_find!(self.transactions, serial_number, contains_serial_number).map(|tx| tx.transaction())
+        cfg_find!(self.transactions, |txn| txn.contains_serial_number(serial_number)).map(|tx| tx.transaction())
     }
 
     /// Returns the transaction with the given commitment, if it exists.
     pub fn find_transaction_for_commitment(&self, commitment: &Field<N>) -> Option<&Transaction<N>> {
-        cfg_find!(self.transactions, commitment, contains_commitment).map(|tx| tx.transaction())
+        cfg_find!(self.transactions, |txn| txn.contains_commitment(commitment)).map(|tx| tx.transaction())
     }
 
     /// Returns the transition with the corresponding transition ID, if it exists.
     pub fn find_transition(&self, transition_id: &N::TransitionID) -> Option<&Transition<N>> {
-        cfg_find_map!(self.transactions, transition_id, find_transition)
+        cfg_find_map!(self.transactions, |txn| txn.find_transition(transition_id))
     }
 
     /// Returns the transition for the given serial number, if it exists.
     pub fn find_transition_for_serial_number(&self, serial_number: &Field<N>) -> Option<&Transition<N>> {
-        cfg_find_map!(self.transactions, serial_number, find_transition_for_serial_number)
+        cfg_find_map!(self.transactions, |txn| txn.find_transition_for_serial_number(serial_number))
     }
 
     /// Returns the transition for the given commitment, if it exists.
     pub fn find_transition_for_commitment(&self, commitment: &Field<N>) -> Option<&Transition<N>> {
-        cfg_find_map!(self.transactions, commitment, find_transition_for_commitment)
+        cfg_find_map!(self.transactions, |txn| txn.find_transition_for_commitment(commitment))
     }
 
     /// Returns the record with the corresponding commitment, if it exists.
     pub fn find_record(&self, commitment: &Field<N>) -> Option<&Record<N, Ciphertext<N>>> {
-        cfg_find_map!(self.transactions, commitment, find_record)
+        cfg_find_map!(self.transactions, |txn| txn.find_record(commitment))
     }
 }
 

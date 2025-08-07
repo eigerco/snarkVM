@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-algorithms"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Algorithms for a decentralized virtual machine"
 homepage = "https://aleo.org"
@@ -47,27 +47,27 @@ required-features = [ "test" ]
 
 [dependencies.snarkvm-curves]
 path = "../curves"
-version = "=3.8.0"
+version = "=4.0.0"
 default-features = false
 
 [dependencies.snarkvm-fields]
 path = "../fields"
-version = "=3.8.0"
+version = "=4.0.0"
 default-features = false
 
 [dependencies.snarkvm-parameters]
 path = "../parameters"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.snarkvm-utilities]
 path = "../utilities"
-version = "=3.8.0"
+version = "=4.0.0"
 default-features = false
 
 [dependencies.snarkvm-algorithms-cuda]
 path = "./cuda"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.aleo-std]
@@ -85,16 +85,12 @@ default-features = true
 version = "1.0.0"
 optional = true
 
-[dependencies.crossbeam-channel]
-version = "0.5"
-optional = true
-
 [dependencies.fxhash]
 version = "0.2.1"
 optional = true
 
 [dependencies.hashbrown]
-version = "0.14.0"
+version = "0.15"
 
 [dependencies.hex]
 version = "0.4"
@@ -106,18 +102,6 @@ optional = true
 [dependencies.itertools]
 version = "0.11.0"
 
-[dependencies.lazy_static]
-version = "1.4"
-optional = true
-
-[dependencies.locktick]
-version = "0.3"
-features = [ "parking_lot" ]
-optional = true
-
-[dependencies.parking_lot]
-version = "0.12"
-
 [dependencies.rand]
 version = "0.8"
 
@@ -126,16 +110,8 @@ version = "0.6"
 default-features = false
 optional = true
 
-[dependencies.rand_chacha]
-version = "0.3"
-default-features = false
-
 [dependencies.rayon]
 version = "1"
-
-[dependencies.rust-gpu-tools]
-version = "0.7.0"
-optional = true
 
 [dependencies.serde]
 version = "1.0"
@@ -153,10 +129,6 @@ features = [ "const_generics", "const_new" ]
 
 [dependencies.thiserror]
 version = "2.0.11"
-
-[dependencies.wasm-bindgen-futures]
-version = "0.4"
-optional = true
 
 [dependencies.num-traits]
 version = "0.2"
@@ -198,8 +170,7 @@ wasm = [
   "msm",
   "polycommit_wasm",
   "r1cs",
-  "snark",
-  "wasm-bindgen-futures"
+  "snark"
 ]
 cosmwasm = [
   "crypto_hash",
@@ -213,7 +184,7 @@ cuda = [ "snarkvm-algorithms-cuda" ]
 profiler = [ "aleo-std/profiler" ]
 crypto_hash = [ ]
 fft = [ ]
-locktick = [ "dep:locktick", "snarkvm-parameters?/locktick" ]
+locktick = [ "snarkvm-parameters?/locktick" ]
 msm = [ ]
 test = [ ]
 polycommit = [ "crypto_hash", "fft", "msm", "rand_core" ]
@@ -228,3 +199,4 @@ serial = [
 ]
 snark = [ "crypto_hash", "fft", "msm", "polycommit", "r1cs" ]
 test_exports = [ ]
+dev-print = [ "snarkvm-utilities/dev-print" ]

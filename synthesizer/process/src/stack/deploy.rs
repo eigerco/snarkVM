@@ -51,13 +51,14 @@ impl<N: Network> Stack<N> {
         finish!(timer);
 
         // Return the deployment.
-        Deployment::new(N::EDITION, self.program.clone(), verifying_keys)
+        Deployment::new(*self.program_edition(), self.program.clone(), verifying_keys)
     }
 
     /// Checks each function in the program on the given verifying key and certificate.
     #[inline]
     pub fn verify_deployment<A: circuit::Aleo<Network = N>, R: Rng + CryptoRng>(
         &self,
+        _consensus_version: ConsensusVersion,
         deployment: &Deployment<N>,
         rng: &mut R,
     ) -> Result<()> {
@@ -67,6 +68,11 @@ impl<N: Network> Stack<N> {
 
         // Ensure the deployment is ordered.
         deployment.check_is_ordered()?;
+        // Ensure that edition in the stack and deployment matches.
+        ensure!(
+            *self.program_edition == deployment.edition(),
+            "The stack edition does not match the deployment edition"
+        );
         // Ensure the program in the stack and deployment matches.
         ensure!(&self.program == deployment.program(), "The stack program does not match the deployment program");
 
@@ -93,6 +99,13 @@ impl<N: Network> Stack<N> {
             deployment.program().functions().len() == deployment.verifying_keys().len(),
             "The number of functions in the program does not match the number of verifying keys"
         );
+
+        #[cfg(not(any(test, feature = "test")))]
+        // Skip the certificate verification if the consensus version is before ConsensusVersion::V8.
+        if (ConsensusVersion::V1..=ConsensusVersion::V7).contains(&_consensus_version) {
+            finish!(timer);
+            return Ok(());
+        }
 
         // Create a seeded rng to use for input value and sub-stack generation.
         // This is needed to ensure that the verification results of deployments are consistent across all parties,

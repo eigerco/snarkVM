@@ -291,7 +291,6 @@ impl<P: Parameters> ProjectiveCurve for Projective<P> {
     }
 
     #[inline]
-    #[must_use]
     fn double(&self) -> Self {
         let mut tmp = *self;
         tmp.double_in_place();

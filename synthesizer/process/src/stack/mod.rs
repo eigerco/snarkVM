@@ -59,6 +59,8 @@ use console::{
         RegisterType,
         Request,
         Response,
+        U8,
+        U16,
         Value,
         ValueType,
     },
@@ -201,6 +203,8 @@ pub struct Stack<N: Network> {
     verifying_keys: Arc<RwLock<IndexMap<Identifier<N>, VerifyingKey<N>>>>,
     /// The program address.
     program_address: Address<N>,
+    /// The program edition.
+    program_edition: U16<N>,
 }
 
 impl<N: Network> Stack<N> {
@@ -209,10 +213,18 @@ impl<N: Network> Stack<N> {
     pub fn new(process: &Process<N>, program: &Program<N>) -> Result<Self> {
         // Retrieve the program ID.
         let program_id = program.id();
-        // Ensure the program does not already exist in the process.
-        ensure!(!process.contains_program(program_id), "Program '{program_id}' already exists");
         // Ensure the program contains functions.
         ensure!(!program.functions().is_empty(), "No functions present in the deployment for program '{program_id}'");
+        // If the program exists in the process, check that the new program exactly matches the existing program.
+        if let Ok(existing_stack) = process.get_stack(program_id) {
+            // Ensure the program is not `credits.aleo`.
+            ensure!(program_id != &ProgramID::from_str("credits.aleo")?, "Cannot re-initialize the 'credits.aleo'.");
+            // Ensure that the new program matches the existing program.
+            ensure!(
+                existing_stack.program() == program,
+                "Program '{program_id}' already exists with different contents."
+            );
+        }
 
         // Serialize the program into bytes.
         let program_bytes = program.to_bytes_le()?;
@@ -322,6 +334,12 @@ impl<N: Network> StackProgram<N> for Stack<N> {
     #[inline]
     fn program_address(&self) -> &Address<N> {
         &self.program_address
+    }
+
+    /// Returns the program edition.
+    #[inline]
+    fn program_edition(&self) -> U16<N> {
+        self.program_edition
     }
 
     /// Returns the external stack for the given program ID.

@@ -1,6 +1,6 @@
 [package]
 name = "snarkvm-synthesizer"
-version = "3.8.0"
+version = "4.0.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
 description = "Synthesizer for a decentralized virtual machine"
 homepage = "https://aleo.org"
@@ -51,7 +51,7 @@ serial = [
   "synthesizer-snark/serial"
 ]
 setup = [ ]
-test = [ "console/test" ]
+test = [ "console/test", "synthesizer-process/test" ]
 timer = [ "aleo-std/timer" ]
 wasm = [
   "process",
@@ -67,6 +67,7 @@ wasm = [
   "synthesizer-program/wasm",
   "synthesizer-snark/wasm"
 ]
+dev-print = [ "utilities/dev-print" ]
 
 [[bench]]
 name = "kary_merkle_tree"
@@ -76,78 +77,78 @@ harness = false
 [dependencies.algorithms]
 package = "snarkvm-algorithms"
 path = "../algorithms"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.circuit]
 package = "snarkvm-circuit"
 path = "../circuit"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.console]
 package = "snarkvm-console"
 path = "../console"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.ledger-block]
 package = "snarkvm-ledger-block"
 path = "../ledger/block"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.ledger-committee]
 package = "snarkvm-ledger-committee"
 path = "../ledger/committee"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.ledger-narwhal-data]
 package = "snarkvm-ledger-narwhal-data"
 path = "../ledger/narwhal/data"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.ledger-puzzle]
 package = "snarkvm-ledger-puzzle"
 path = "../ledger/puzzle"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.ledger-puzzle-epoch]
 package = "snarkvm-ledger-puzzle-epoch"
 path = "../ledger/puzzle/epoch"
-version = "=3.8.0"
+version = "=4.0.0"
 features = [ "synthesis" ]
 
 [dependencies.ledger-query]
 package = "snarkvm-ledger-query"
 path = "../ledger/query"
-version = "=3.8.0"
+version = "=4.0.0"
 default-features = false
 features = [ "query" ]
 
 [dependencies.ledger-store]
 package = "snarkvm-ledger-store"
 path = "../ledger/store"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.synthesizer-process]
 package = "snarkvm-synthesizer-process"
 path = "./process"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.synthesizer-program]
 package = "snarkvm-synthesizer-program"
 path = "./program"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.synthesizer-snark]
 package = "snarkvm-synthesizer-snark"
 path = "./snark"
-version = "=3.8.0"
+version = "=4.0.0"
 optional = true
 
 [dependencies.utilities]
 package = "snarkvm-utilities"
 path = "../utilities"
-version = "=3.8.0"
+version = "=4.0.0"
 
 [dependencies.aleo-std]
 version = "1.0.1"
@@ -210,6 +211,11 @@ features = [ "test-helpers" ]
 package = "snarkvm-ledger-narwhal-batch-header"
 path = "../ledger/narwhal/batch-header"
 features = [ "test-helpers" ]
+
+[dev-dependencies.synthesizer-process]
+package = "snarkvm-synthesizer-process"
+path = "./process"
+features = [ "test" ]
 
 [dev-dependencies.ledger-test-helpers]
 package = "snarkvm-ledger-test-helpers"

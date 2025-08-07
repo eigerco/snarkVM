@@ -87,6 +87,8 @@ pub enum ConsensusVersion {
     V6 = 6,
     /// V7: Update to program rules.
     V7 = 7,
+    /// V8: Update to inclusion version, record commitment version, and introduces sender ciphertexts.
+    V8 = 8,
 }
 
 pub trait Network:
@@ -136,9 +138,9 @@ pub trait Network:
     /// The cost in microcredits per constraint for the deployment transaction.
     const SYNTHESIS_FEE_MULTIPLIER: u64 = 25; // 25 microcredits per constraint
     /// The maximum number of variables in a deployment.
-    const MAX_DEPLOYMENT_VARIABLES: u64 = 1 << 20; // 1,048,576 variables
+    const MAX_DEPLOYMENT_VARIABLES: u64 = 1 << 21; // 2,097,152 variables
     /// The maximum number of constraints in a deployment.
-    const MAX_DEPLOYMENT_CONSTRAINTS: u64 = 1 << 20; // 1,048,576 constraints
+    const MAX_DEPLOYMENT_CONSTRAINTS: u64 = 1 << 21; // 2,097,152 constraints
     /// The maximum number of microcredits that can be spent as a fee.
     const MAX_FEE: u64 = 1_000_000_000_000_000;
     /// The maximum number of microcredits that can be spent on a transaction's finalize scope.
@@ -226,7 +228,7 @@ pub trait Network:
 
     /// A list of (consensus_version, block_height) pairs indicating when each consensus version takes effect.
     /// Documentation for what is changed at each version can be found in `N::CONSENSUS_VERSION`
-    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 7];
+    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 8];
     ///  A list of (consensus_version, size) pairs indicating the maximum number of validators in a committee.
     //  Note: This value must **not** decrease without considering the impact on serialization.
     //  Decreasing this value will break backwards compatibility of serialization without explicit
@@ -262,17 +264,33 @@ pub trait Network:
         Self::MAX_CERTIFICATES.last().map_or(Err(anyhow!("No MAX_CERTIFICATES defined.")), |(_, value)| Ok(*value))
     }
 
+    /// Returns the block height where the the inclusion proof will be updated.
+    #[allow(non_snake_case)]
+    fn INCLUSION_UPGRADE_HEIGHT() -> Result<u32>;
+
     /// Returns the genesis block bytes.
     fn genesis_bytes() -> &'static [u8];
 
     /// Returns the restrictions list as a JSON-compatible string.
     fn restrictions_list_as_str() -> &'static str;
 
+    /// Returns the proving key for the given function name in the v0 version of `credits.aleo`.
+    fn get_credits_v0_proving_key(function_name: String) -> Result<&'static Arc<VarunaProvingKey<Self>>>;
+
+    /// Returns the verifying key for the given function name in the v0 version of `credits.aleo`.
+    fn get_credits_v0_verifying_key(function_name: String) -> Result<&'static Arc<VarunaVerifyingKey<Self>>>;
+
     /// Returns the proving key for the given function name in `credits.aleo`.
     fn get_credits_proving_key(function_name: String) -> Result<&'static Arc<VarunaProvingKey<Self>>>;
 
     /// Returns the verifying key for the given function name in `credits.aleo`.
     fn get_credits_verifying_key(function_name: String) -> Result<&'static Arc<VarunaVerifyingKey<Self>>>;
+
+    /// Returns the `proving key` for the inclusion_v0 circuit.
+    fn inclusion_v0_proving_key() -> &'static Arc<VarunaProvingKey<Self>>;
+
+    /// Returns the `verifying key` for the inclusion_v0 circuit.
+    fn inclusion_v0_verifying_key() -> &'static Arc<VarunaVerifyingKey<Self>>;
 
     /// Returns the `proving key` for the inclusion circuit.
     fn inclusion_proving_key() -> &'static Arc<VarunaProvingKey<Self>>;
@@ -294,6 +312,9 @@ pub trait Network:
 
     /// Returns the sponge parameters for Varuna.
     fn varuna_fs_parameters() -> &'static FiatShamirParameters<Self>;
+
+    /// Returns the commitment domain as a constant field element.
+    fn commitment_domain() -> Field<Self>;
 
     /// Returns the encryption domain as a constant field element.
     fn encryption_domain() -> Field<Self>;

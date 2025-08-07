@@ -72,6 +72,31 @@ pub enum Literal<A: Aleo> {
     String(StringType<A>),
 }
 
+macro_rules! impl_from {
+    ($($name: ident)*) => {
+        $(
+            impl<A: Aleo> From<$name<A>> for Literal<A> {
+                fn from(value: $name<A>) -> Self {
+                    Literal::$name(value)
+                }
+            }
+        )*
+    };
+}
+
+impl_from! {
+    Address Boolean Field Group
+    I8 I16 I32 I64 I128
+    U8 U16 U32 U64 U128
+    Scalar
+}
+
+impl<A: Aleo> From<Signature<A>> for Literal<A> {
+    fn from(value: Signature<A>) -> Self {
+        Literal::Signature(Box::new(value))
+    }
+}
+
 #[cfg(feature = "console")]
 impl<A: Aleo> Inject for Literal<A> {
     type Primitive = console::Literal<A::Network>;

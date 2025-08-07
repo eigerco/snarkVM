@@ -1220,7 +1220,7 @@ impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
 
     /// Returns the current block height.
     pub fn current_block_height(&self) -> u32 {
-        u32::try_from(self.tree.read().number_of_leaves()).unwrap() - 1
+        u32::try_from(self.tree.read().number_of_leaves()).unwrap().saturating_sub(1)
     }
 
     /// Returns the state root that contains the given `block height`.
@@ -1313,9 +1313,19 @@ impl<N: Network, B: BlockStorage<N>> BlockStore<N, B> {
         self.storage.get_block(block_hash)
     }
 
-    /// Returns the program for the given `program ID`.
-    pub fn get_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
-        self.storage.transaction_store().get_program(program_id)
+    /// Returns the latest edition for the given `program ID`.
+    pub fn get_latest_edition_for_program(&self, program_id: &ProgramID<N>) -> Result<Option<u16>> {
+        self.storage.transaction_store().get_latest_edition_for_program(program_id)
+    }
+
+    /// Returns the latest program for the given `program ID`.
+    pub fn get_latest_program(&self, program_id: &ProgramID<N>) -> Result<Option<Program<N>>> {
+        self.storage.transaction_store().get_latest_program(program_id)
+    }
+
+    /// Returns the program for the given `program ID` and `edition`.
+    pub fn get_program_for_edition(&self, program_id: &ProgramID<N>, edition: u16) -> Result<Option<Program<N>>> {
+        self.storage.transaction_store().get_program_for_edition(program_id, edition)
     }
 
     /// Returns true if there is a block for the given certificate.
@@ -1410,6 +1420,18 @@ mod tests {
     use crate::helpers::memory::BlockMemory;
 
     type CurrentNetwork = console::network::MainnetV0;
+
+    #[test]
+    fn test_current_block_height_empty() {
+        // Initialize a new block store.
+        let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(StorageMode::new_test(None)).unwrap();
+
+        // Current_block_height shouldn't panic.
+        assert_eq!(block_store.current_block_height(), 0);
+
+        // Verify the equivalence of the alternative method.
+        assert_eq!(block_store.max_height().unwrap_or_default(), 0);
+    }
 
     #[test]
     fn test_insert_get_remove() {

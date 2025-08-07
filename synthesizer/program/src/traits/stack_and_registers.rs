@@ -34,7 +34,7 @@ use console::{
         Value,
         ValueType,
     },
-    types::{Address, Field},
+    types::{Address, Field, U16},
 };
 use rand::{CryptoRng, Rng};
 use synthesizer_snark::{ProvingKey, VerifyingKey};
@@ -94,6 +94,9 @@ pub trait StackProgram<N: Network> {
 
     /// Returns the program address.
     fn program_address(&self) -> &Address<N>;
+
+    /// Returns the program edition.
+    fn program_edition(&self) -> U16<N>;
 
     /// Returns the external stack for the given program ID.
     fn get_external_stack(&self, program_id: &ProgramID<N>) -> Result<Arc<Self>>;

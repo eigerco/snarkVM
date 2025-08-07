@@ -311,7 +311,6 @@ impl<P: Fp6Parameters> Neg for Fp6<P> {
     type Output = Self;
 
     #[inline]
-    #[must_use]
     fn neg(self) -> Self {
         let mut copy = Self::zero();
         copy.c0 = self.c0.neg();

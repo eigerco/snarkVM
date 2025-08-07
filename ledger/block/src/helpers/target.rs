@@ -39,10 +39,9 @@ pub fn block_reward<N: Network>(
 ) -> Result<u64> {
     // Determine which block reward version to use.
     let consensus_version = N::CONSENSUS_VERSION(block_height)?;
-    if consensus_version == ConsensusVersion::V1 {
-        Ok(block_reward_v1(total_supply, block_time, coinbase_reward, transaction_fees))
-    } else {
-        Ok(block_reward_v2(total_supply, time_since_last_block, coinbase_reward, transaction_fees))
+    match consensus_version == ConsensusVersion::V1 {
+        true => Ok(block_reward_v1(total_supply, block_time, coinbase_reward, transaction_fees)),
+        false => Ok(block_reward_v2(total_supply, time_since_last_block, coinbase_reward, transaction_fees)),
     }
 }
 

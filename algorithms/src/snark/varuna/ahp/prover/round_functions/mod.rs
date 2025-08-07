@@ -29,7 +29,7 @@ use rand::Rng;
 use rand_core::CryptoRng;
 use std::collections::BTreeMap;
 
-use snarkvm_utilities::{cfg_iter, println};
+use snarkvm_utilities::{cfg_iter, dev_println};
 
 #[cfg(not(feature = "serial"))]
 use rayon::prelude::*;
@@ -69,10 +69,6 @@ impl<F: PrimeField, SM: SNARKMode> AHPForR1CS<F, SM> {
             .iter()
             .zip_eq(randomizing_assignments.into_iter())
             .map(|((circuit, constraints), circuit_rand_assignments)| {
-                let num_non_zero_a = circuit.index_info.num_non_zero_a;
-                let num_non_zero_b = circuit.index_info.num_non_zero_b;
-                let num_non_zero_c = circuit.index_info.num_non_zero_c;
-
                 let assignments = cfg_iter!(constraints)
                     .zip(circuit_rand_assignments)
                     .enumerate()
@@ -111,14 +107,12 @@ impl<F: PrimeField, SM: SNARKMode> AHPForR1CS<F, SM> {
                         assert!(padded_public_variables[0].is_one());
                         assert_eq!(private_variables.len(), num_private_variables);
 
-                        if cfg!(debug_assertions) {
-                            println!("Number of padded public variables in Prover::Init: {num_public_variables}");
-                            println!("Number of private variables: {num_private_variables}");
-                            println!("Number of constraints: {num_constraints}");
-                            println!("Number of non-zero entries in A: {num_non_zero_a}");
-                            println!("Number of non-zero entries in B: {num_non_zero_b}");
-                            println!("Number of non-zero entries in C: {num_non_zero_c}");
-                        }
+                        dev_println!("Number of padded public variables in Prover::Init: {num_public_variables}");
+                        dev_println!("Number of private variables: {num_private_variables}");
+                        dev_println!("Number of constraints: {num_constraints}");
+                        dev_println!("Number of non-zero entries in A: {}", circuit.index_info.num_non_zero_a);
+                        dev_println!("Number of non-zero entries in B: {}", circuit.index_info.num_non_zero_b);
+                        dev_println!("Number of non-zero entries in C: {}", circuit.index_info.num_non_zero_c);
 
                         if circuit.index_info.num_constraints != num_constraints
                             || circuit.index_info.num_public_and_private_variables
