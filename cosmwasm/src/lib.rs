@@ -14,3 +14,7 @@
 // limitations under the License.
 
 pub use snarkvm_console as console;
+
+pub mod prelude {
+    pub use snarkvm_console::{account::*, network::*, program::*};
+}
