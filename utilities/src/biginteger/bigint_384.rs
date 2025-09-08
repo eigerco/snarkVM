@@ -28,7 +28,6 @@ use crate::{
 };
 
 use anyhow::Result;
-use num_bigint::BigUint;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
@@ -209,9 +208,10 @@ impl BigInteger for BigInteger384 {
         }
     }
 
+    #[cfg(not(feature = "cosmwasm"))]
     #[inline]
     fn to_biguint(&self) -> num_bigint::BigUint {
-        BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
+        num_bigint::BigUint::from_bytes_le(&self.to_bytes_le().unwrap())
     }
 
     #[inline]
@@ -304,7 +304,17 @@ impl Debug for BigInteger384 {
 }
 impl Display for BigInteger384 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_biguint())
+        #[cfg(not(feature = "cosmwasm"))]
+        {
+            write!(f, "{}", self.to_biguint())
+        }
+
+        #[cfg(feature = "cosmwasm")]
+        {
+            let bytes = self.to_bytes_le().unwrap().try_into().unwrap();
+            let num = cosmwasm_std::Uint256::new(bytes);
+            write!(f, "{}", num)
+        }
     }
 }
 impl Ord for BigInteger384 {

@@ -71,9 +71,14 @@ default-features = false
 workspace = true
 features = [ "derive" ]
 
+[dependencies.cosmwasm-std]
+version = "2.1.4"
+optional = true
+
 [features]
 default = [ "derive" ]
 derive = [ "snarkvm-utilities-derives" ]
 dev-print = [ ]
 serial = [ "derive" ]
 wasm = [ ]
+cosmwasm = [ "cosmwasm-std" ]

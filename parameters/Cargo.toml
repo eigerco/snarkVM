@@ -29,7 +29,11 @@ locktick = [ "dep:locktick" ]
 no_std_out = [ ]
 rocks = [ "snarkvm-ledger-store/rocks" ]
 wasm = [ "encoding", "js-sys", "web-sys" ]
+cosmwasm = [ "getrandom/custom" ]
 dev-print = [ "snarkvm-utilities/dev-print" ]
+
+[dependencies.getrandom]
+version = "0.2"
 
 [dependencies.snarkvm-curves]
 workspace = true
