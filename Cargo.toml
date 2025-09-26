@@ -22,7 +22,8 @@ categories = [
 include = [ "Cargo.toml", "vm", "README.md", "LICENSE.md" ]
 license = "Apache-2.0"
 edition = "2024"
-rust-version = "1.88.0" # Attention - Change the MSRV in rust-toolchain and in .circleci/config.yml as well
+# rust-version is set to 1.86.0 to match axelar-amplifier version.
+rust-version = "1.86.0" # Attention - Change the MSRV in rust-toolchain and in .circleci/config.yml as well
 
 [workspace]
 members = [
@@ -59,6 +60,7 @@ members = [
   "console/types/integers",
   "console/types/scalar",
   "console/types/string",
+  "cosmwasm",
   "curves",
   "fields",
   "ledger",

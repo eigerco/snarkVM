@@ -71,9 +71,14 @@ default-features = false
 workspace = true
 features = [ "derive" ]
 
+[dependencies.bnum]
+version = "0.13.0"
+optional = true
+
 [features]
 default = [ "derive" ]
 derive = [ "snarkvm-utilities-derives" ]
 dev-print = [ ]
 serial = [ "derive" ]
 wasm = [ ]
+cosmwasm = [ "bnum" ]
