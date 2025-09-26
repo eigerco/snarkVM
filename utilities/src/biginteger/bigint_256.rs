@@ -305,7 +305,17 @@ impl Debug for BigInteger256 {
 
 impl Display for BigInteger256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_biguint())
+        #[cfg(not(feature = "cosmwasm"))]
+        {
+            write!(f, "{}", self.to_biguint())
+        }
+
+        #[cfg(feature = "cosmwasm")]
+        {
+            let bytes = self.to_bytes_le().unwrap().try_into().unwrap();
+            let num = bnum::types::U256::from_le_bytes(bytes);
+            write!(f, "{}", num)
+        }
     }
 }
 

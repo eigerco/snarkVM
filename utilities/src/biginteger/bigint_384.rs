@@ -312,7 +312,8 @@ impl Display for BigInteger384 {
         #[cfg(feature = "cosmwasm")]
         {
             let bytes = self.to_bytes_le().unwrap().try_into().unwrap();
-            let num = cosmwasm_std::Uint256::new(bytes);
+            // 6: number of u64 needed for 384 bits
+            let num = bnum::BUint::<6>::from_le_bytes(bytes);
             write!(f, "{}", num)
         }
     }
