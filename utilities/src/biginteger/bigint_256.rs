@@ -312,8 +312,10 @@ impl Display for BigInteger256 {
 
         #[cfg(feature = "cosmwasm")]
         {
-            let bytes = self.to_bytes_le().unwrap().try_into().unwrap();
-            let num = bnum::types::U256::from_le_bytes(bytes);
+            let bytes = self.to_bytes_le().unwrap();
+
+            // NOTE: from_le_slice will never fail here since we are passing a slice of correct length
+            let num = bnum::types::U256::from_le_slice(&bytes).unwrap();
             write!(f, "{}", num)
         }
     }
