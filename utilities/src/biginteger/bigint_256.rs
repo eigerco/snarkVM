@@ -41,7 +41,7 @@ impl BigInteger256 {
     }
 }
 
-impl crate::biginteger::BigInteger for BigInteger256 {
+impl BigInteger for BigInteger256 {
     const NUM_LIMBS: usize = 4;
 
     #[inline]
